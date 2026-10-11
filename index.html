@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="refresh" content="0;url=./dist/">
+  <title>German Study Companion</title>
+  <script>
+    const app = new URL('./dist/', window.location.href);
+    app.hash = window.location.hash;
+    window.location.replace(app.href);
+  </script>
+</head>
+<body><p><a href="./dist/">Open German Study Companion</a></p></body>
+</html>

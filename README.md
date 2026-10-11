@@ -10,6 +10,8 @@ This intentionally tests storage first: full PDF opened in a separate tab, autom
 
 ## GitHub Pages
 
+For the current `work` branch, use Settings → Pages → Deploy from a branch → `work` → `/(root)`. The repository's root `index.html` forwards to the app in `dist/`, and `.nojekyll` disables README-based Jekyll rendering. The app URL is `https://trimngo.github.io/assimilapp/dist/`. Add that app page to your iPhone Home Screen after the redirect completes. Future pushes to `work` update this deployment without changing branches.
+
 For the source repository layout, upload `dist/` and `.github/workflows/pages.yml` to the repository's `main` branch. In Settings → Pages, choose **GitHub Actions** as the source. The workflow deploys only `dist/` and can be triggered manually from Actions. No build or dependencies are needed. The app uses relative URLs to work at a project subpath such as `/assimilapp/`.
 
 Alternatively, use the ready-to-host ZIP: put its extracted files directly at the repository root (so `index.html` is at the root), then choose Settings → Pages → Deploy from a branch → `main` → `/(root)`. No workflow is necessary for this option.
