@@ -55,7 +55,8 @@ export function preparedSentences(lesson) {
 export function preparedDialogue(lesson, includeRepeat = false) {
   const audio=lesson?.audio;
   if(!audio?.dialogue)return null;
-  const range={...audio.dialogue};
+  // Keep the spoken lesson number and title before the dialogue.
+  const range={...audio.dialogue,start:0};
   if(includeRepeat&&audio.repeatDialogue)
     range.end=Math.min(audio.duration,Math.max(range.end,audio.repeatDialogue.end+.1));
   return range;

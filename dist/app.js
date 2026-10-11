@@ -94,11 +94,13 @@ function saveProgress() { const snapshot=structuredClone(progress);$('save-statu
 function renderProgress() {
   study?.update().catch(e=>notice(e.message));
   $('lesson').value=progress.lesson; $('lesson-back').disabled=progress.lesson<=1;$('lesson-next').disabled=progress.lesson>=9999;
+  const title=courseIndex?.lessons.find(lesson=>lesson.number===progress.lesson)?.title;
+  $('lesson-title').textContent=title?`${progress.lesson} ${title}`:`Lesson ${progress.lesson}`;
   $('step-count').textContent=`STEP ${progress.step+1} OF ${steps.length}`;$('step-title').textContent=steps[progress.step][0];$('step-instruction').textContent=steps[progress.step][1];$('step-note').textContent=steps[progress.step][2];$('previous').disabled=progress.step===0;$('next').textContent=progress.step===7?'Finish lesson →':'Next step →';
   if(!$('step-dots').children.length)$('step-dots').replaceChildren(...steps.map(([title],i)=>{const b=document.createElement('button');b.setAttribute('aria-label',`Step ${i+1}: ${title}`);b.addEventListener('click',()=>{progress.step=i;renderProgress();saveProgress().catch(()=>{});});return b;}));
   [...$('step-dots').children].forEach((button,i)=>{button.className=i===progress.step?'current':i<progress.step?'past':'';if(i===progress.step)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});
 }
-async function changeLesson(value) { const lesson=Number(value);if(!Number.isInteger(lesson)||lesson<1||lesson>9999){$('lesson').value=progress.lesson;notice('Enter a lesson number from 1 to 9999.');return;}if(lesson===progress.lesson)return;progress.lesson=lesson;progress.step=0;renderProgress();renderAudioOptions();await Promise.all([saveProgress(),loadAudio(progress.tracks[lesson]||'')]); }
+async function changeLesson(value) { const lesson=Number(value);if(!Number.isInteger(lesson)||lesson<1||lesson>9999){$('lesson').value=progress.lesson;notice('Enter a lesson number from 1 to 9999.');return;}if(lesson===progress.lesson)return;progress.lesson=lesson;progress.step=0;renderProgress();window.scrollTo({top:0,behavior:'smooth'});renderAudioOptions();await Promise.all([saveProgress(),loadAudio(progress.tracks[lesson]||'')]); }
 $('lesson').addEventListener('change',e=>changeLesson(e.target.value).catch(e=>notice(e.message)));
 $('lesson-back').addEventListener('click',()=>changeLesson(progress.lesson-1).catch(e=>notice(e.message)));
 $('lesson-next').addEventListener('click',()=>changeLesson(progress.lesson+1).catch(e=>notice(e.message)));

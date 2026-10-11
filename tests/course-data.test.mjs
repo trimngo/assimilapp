@@ -51,10 +51,11 @@ test('prepared sentence padding stays ordered and flags remain visible',()=>{
   }
   assert(flagged>0);
 });
-test('blind listening includes both recorded readings without extending ordinary dialogue playback',()=>{
+test('lesson playback includes its spoken title and blind listening includes both readings',()=>{
   for(const lesson of index.lessons){
     const single=preparedDialogue(lesson),blind=preparedDialogue(lesson,true);
-    assert.deepEqual(single,lesson.audio.dialogue);
+    assert.equal(single.start,0);
+    assert.equal(single.end,lesson.audio.dialogue.end);
     assert.equal(blind.start,single.start);
     if(lesson.audio.repeatDialogue){
       assert(blind.end>=lesson.audio.repeatDialogue.end);assert(blind.end>single.end);assert(blind.end<=lesson.audio.duration);

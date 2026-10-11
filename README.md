@@ -1,6 +1,6 @@
 # German Study Companion
 
-An offline iPhone-friendly companion for your German Assimil course. Import your book PDFs and audio once; files and progress stay on the device. The hosted app contains only software and prepared page/timing metadata.
+An offline iPhone-friendly companion for your German Assimil course. Import your book PDFs and audio once; files and progress stay on the device. The hosted app contains only software and prepared lesson titles, page mappings, and timing metadata.
 
 ## Start studying
 
@@ -8,13 +8,13 @@ Open [the app](https://trimngo.github.io/assimilapp/dist/) in Safari, choose Sha
 
 In **Menu → My materials**, select your full `ASSIMIl German book.pdf` and lesson MP3s. The supplied `001-300.pdf`, `301-600.pdf`, and `601-614.pdf` still work as an alternative. Imports can be split into batches. Start with recordings 1–3 if you prefer. The app checks the full book’s 614-page layout once (keep it open until the check finishes), or verifies the split originals by fingerprint. It automatically finds each lesson's pages, and matches audio without assigning recordings manually. Keep the original materials and export progress occasionally; iOS storage retention is not guaranteed.
 
-Choose a lesson and follow the eight steps. Back and Next stay in the compact top toolbar alongside lesson selection and the menu. Only the current instruction and relevant controls appear; materials, backup, and updates live in the menu.
+Choose a lesson and follow the eight steps. The lesson number and title appear above the current instruction. The compact top toolbar holds lesson selection and the menu; Back and Next appear below the lesson content. Only the current instruction and relevant controls appear; materials, backup, and updates live in the menu.
 
 1. **Review:** play the previous two or three available lesson dialogues in order.
-2. **Blind listening:** play the current dialogue twice with the book hidden, then stop. Each listen includes the fast reading and slower repeat where the recording contains both, ending before exercises. Other study steps retain the first dialogue range.
+2. **Blind listening:** play the current dialogue twice with the book hidden, then stop. Lesson playback starts with the spoken lesson number and title. Each listen includes the fast reading and slower repeat where the recording contains both, ending before exercises. Other study steps retain the first dialogue ending.
 3. **Understand:** read the German, English translation, notes, and exercises on the mapped pages.
 4. **Read along:** listen to the dialogue while following the pages. A compact playback bar appears when the main player scrolls out of view.
-5. **Shadowing:** play, pause, and repeat prepared sentence cuts. Then speak along with text and without. Practice options offer a repeat gap and automatic continuation. In **Playback options → Adjust this sentence**, edit start/end times, nudge them by 0.05 seconds, or copy the playhead position. Preview the adjusted cut, then **Save sentence**. The visible book and sentence number provide context. Preview does not save or automatically advance; corrections stay on this device and are included in progress backups. **Edit all sentence timings** remains available for bulk changes.
+5. **Shadowing:** play, pause, and repeat prepared sentence cuts. After a sentence pauses, **Play** continues forward to the next sentence ending; **Repeat sentence** replays the selected sentence. Play after the final sentence continues through the remaining recording. A manual pause within a sentence resumes in place. Then speak along with text and without. Practice options offer a repeat gap and automatic continuation. In **Playback options → Adjust this sentence**, edit start/end times, nudge them by 0.05 seconds, or copy the playhead position. Preview the adjusted cut, then **Save sentence**. The visible book and sentence number provide context. Preview does not save or automatically advance; corrections stay on this device and are included in progress backups. **Edit all sentence timings** remains available for bulk changes.
 6. **Read aloud & exercises:** keep the lesson pages visible; the player can play the full recording, including exercises.
 7. **Write:** copy the sentences by hand while reading the pages.
 8. **Recall:** see all the prepared English translation crops; reveal and hide the lesson to check your German.

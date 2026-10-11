@@ -12,6 +12,7 @@ def check(index):
     assert sum(s["pageCount"] for s in sources.values()) == 614
     assert sum(len(l["englishRecall"]) for l in lessons) == 208
     for lesson in lessons:
+        assert isinstance(lesson.get("title"), str) and lesson["title"].strip()
         assert lesson["englishRecall"] and lesson["germanDialogue"]
         assert lesson["startPrintedPage"] == lesson["startGlobalPage"] - 8
         for key in ("studyPages", "germanDialogue", "englishRecall"):

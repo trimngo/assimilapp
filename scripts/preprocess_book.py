@@ -46,6 +46,10 @@ def heading(page, english=False):
 
 def build(pdf_paths, output, export_dir=None, alignment_text=None):
     layout = json.loads((ROOT / "course/book-layout.json").read_text())
+    # Reviewed against the scan; its OCR confuses umlauts and footnote markers.
+    titles = json.loads((ROOT / "course/lesson-titles.json").read_text())
+    if len(titles) != 100 or any(not isinstance(title, str) or not title.strip() for title in titles):
+        raise ValueError("Expected 100 reviewed lesson titles")
     sources, pages, documents = [], [], []
     # Validate the exact originals before applying edition-specific crops.
     for path, (name, count, expected_hash) in zip(pdf_paths, SOURCES):
@@ -110,7 +114,7 @@ def build(pdf_paths, output, export_dir=None, alignment_text=None):
                 dialogue.append({**ref(r["page"], r["box"]), "numberedLines": r["numberedLines"]})
         if not recall:
             raise ValueError(f"Lesson {number}: missing English recall crop")
-        lesson = {"number": number, "kind": "review" if number % 7 == 0 else "lesson",
+        lesson = {"number": number, "title": titles[number - 1], "kind": "review" if number % 7 == 0 else "lesson",
                   "startGlobalPage": start, "startPrintedPage": start - 8,
                   "studyPages": study, "germanDialogue": dialogue, "englishRecall": recall,
                   "numberedLineCount": layout["numberedLineCounts"][number - 1],

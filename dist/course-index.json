@@ -39,6 +39,7 @@
   "lessons": [
     {
       "number": 1,
+      "title": "Viel Gl\u00fcck!",
       "kind": "lesson",
       "startGlobalPage": 9,
       "startPrintedPage": 1,
@@ -277,6 +278,7 @@
     },
     {
       "number": 2,
+      "title": "Im Hotel",
       "kind": "lesson",
       "startGlobalPage": 13,
       "startPrintedPage": 5,
@@ -498,6 +500,7 @@
     },
     {
       "number": 3,
+      "title": "Das Foto",
       "kind": "lesson",
       "startGlobalPage": 15,
       "startPrintedPage": 7,
@@ -797,6 +800,7 @@
     },
     {
       "number": 4,
+      "title": "Das Fr\u00fchst\u00fcck im Caf\u00e9",
       "kind": "lesson",
       "startGlobalPage": 19,
       "startPrintedPage": 11,
@@ -1183,6 +1187,7 @@
     },
     {
       "number": 5,
+      "title": "Ein Telefongespr\u00e4ch",
       "kind": "lesson",
       "startGlobalPage": 25,
       "startPrintedPage": 17,
@@ -1516,6 +1521,7 @@
     },
     {
       "number": 6,
+      "title": "Es ist noch nicht sp\u00e4t",
       "kind": "lesson",
       "startGlobalPage": 29,
       "startPrintedPage": 21,
@@ -1833,6 +1839,7 @@
     },
     {
       "number": 7,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 33,
       "startPrintedPage": 25,
@@ -2063,6 +2070,7 @@
     },
     {
       "number": 8,
+      "title": "Was trinken wir?",
       "kind": "lesson",
       "startGlobalPage": 37,
       "startPrintedPage": 29,
@@ -2315,6 +2323,7 @@
     },
     {
       "number": 9,
+      "title": "Wer hat Geld?",
       "kind": "lesson",
       "startGlobalPage": 43,
       "startPrintedPage": 35,
@@ -2521,6 +2530,7 @@
     },
     {
       "number": 10,
+      "title": "Das ist nicht dumm!",
       "kind": "lesson",
       "startGlobalPage": 47,
       "startPrintedPage": 39,
@@ -2754,6 +2764,7 @@
     },
     {
       "number": 11,
+      "title": "Eine Nachricht",
       "kind": "lesson",
       "startGlobalPage": 51,
       "startPrintedPage": 43,
@@ -3008,6 +3019,7 @@
     },
     {
       "number": 12,
+      "title": "Bist du\u2019s, Janina?",
       "kind": "lesson",
       "startGlobalPage": 57,
       "startPrintedPage": 49,
@@ -3246,6 +3258,7 @@
     },
     {
       "number": 13,
+      "title": "Ferienende",
       "kind": "lesson",
       "startGlobalPage": 61,
       "startPrintedPage": 53,
@@ -3475,6 +3488,7 @@
     },
     {
       "number": 14,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 65,
       "startPrintedPage": 57,
@@ -3734,6 +3748,7 @@
     },
     {
       "number": 15,
+      "title": "Entschuldigen Sie bitte, ich habe eine Frage\u2026",
       "kind": "lesson",
       "startGlobalPage": 69,
       "startPrintedPage": 61,
@@ -3963,6 +3978,7 @@
     },
     {
       "number": 16,
+      "title": "Warum vergeht die Zeit so schnell?",
       "kind": "lesson",
       "startGlobalPage": 75,
       "startPrintedPage": 67,
@@ -4206,6 +4222,7 @@
     },
     {
       "number": 17,
+      "title": "Zahlen machen m\u00fcde",
       "kind": "lesson",
       "startGlobalPage": 81,
       "startPrintedPage": 73,
@@ -4427,6 +4444,7 @@
     },
     {
       "number": 18,
+      "title": "Eine Postkarte aus M\u00fcnchen",
       "kind": "lesson",
       "startGlobalPage": 87,
       "startPrintedPage": 79,
@@ -4661,6 +4679,7 @@
     },
     {
       "number": 19,
+      "title": "Essen? Ja gern! Aber was?",
       "kind": "lesson",
       "startGlobalPage": 91,
       "startPrintedPage": 83,
@@ -4919,6 +4938,7 @@
     },
     {
       "number": 20,
+      "title": "Am Bahnhof",
       "kind": "lesson",
       "startGlobalPage": 95,
       "startPrintedPage": 87,
@@ -5219,6 +5239,7 @@
     },
     {
       "number": 21,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 101,
       "startPrintedPage": 93,
@@ -5500,6 +5521,7 @@
     },
     {
       "number": 22,
+      "title": "Das Geburtstagsfest",
       "kind": "lesson",
       "startGlobalPage": 107,
       "startPrintedPage": 99,
@@ -5771,6 +5793,7 @@
     },
     {
       "number": 23,
+      "title": "Eine gute Organisation",
       "kind": "lesson",
       "startGlobalPage": 111,
       "startPrintedPage": 103,
@@ -6028,6 +6051,7 @@
     },
     {
       "number": 24,
+      "title": "Komm, wir gehen einkaufen!",
       "kind": "lesson",
       "startGlobalPage": 117,
       "startPrintedPage": 109,
@@ -6243,6 +6267,7 @@
     },
     {
       "number": 25,
+      "title": "Ist Ihr Terminkalender auch zu voll?",
       "kind": "lesson",
       "startGlobalPage": 121,
       "startPrintedPage": 113,
@@ -6486,6 +6511,7 @@
     },
     {
       "number": 26,
+      "title": "Was machen wir heute Abend, Liebling?",
       "kind": "lesson",
       "startGlobalPage": 127,
       "startPrintedPage": 119,
@@ -6726,6 +6752,7 @@
     },
     {
       "number": 27,
+      "title": "Na, schmeckt\u2019s?",
       "kind": "lesson",
       "startGlobalPage": 131,
       "startPrintedPage": 123,
@@ -6990,6 +7017,7 @@
     },
     {
       "number": 28,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 137,
       "startPrintedPage": 129,
@@ -7375,6 +7403,7 @@
     },
     {
       "number": 29,
+      "title": "Man kann nicht immer Gl\u00fcck haben",
       "kind": "lesson",
       "startGlobalPage": 145,
       "startPrintedPage": 137,
@@ -7633,6 +7662,7 @@
     },
     {
       "number": 30,
+      "title": "Dienst ist Dienst und Schnaps ist Schnaps",
       "kind": "lesson",
       "startGlobalPage": 149,
       "startPrintedPage": 141,
@@ -7868,6 +7898,7 @@
     },
     {
       "number": 31,
+      "title": "Guter Rat ist teuer",
       "kind": "lesson",
       "startGlobalPage": 155,
       "startPrintedPage": 147,
@@ -8123,6 +8154,7 @@
     },
     {
       "number": 32,
+      "title": "Ein gef\u00e4hrliches Missverst\u00e4ndnis",
       "kind": "lesson",
       "startGlobalPage": 159,
       "startPrintedPage": 151,
@@ -8407,6 +8439,7 @@
     },
     {
       "number": 33,
+      "title": "Die Stadtbesichtigung",
       "kind": "lesson",
       "startGlobalPage": 165,
       "startPrintedPage": 157,
@@ -8637,6 +8670,7 @@
     },
     {
       "number": 34,
+      "title": "Was man darf und was man nicht darf",
       "kind": "lesson",
       "startGlobalPage": 169,
       "startPrintedPage": 161,
@@ -8844,6 +8878,7 @@
     },
     {
       "number": 35,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 175,
       "startPrintedPage": 167,
@@ -9168,6 +9203,7 @@
     },
     {
       "number": 36,
+      "title": "Eine gute Partie",
       "kind": "lesson",
       "startGlobalPage": 181,
       "startPrintedPage": 173,
@@ -9472,6 +9508,7 @@
     },
     {
       "number": 37,
+      "title": "Eine gute Partie (Fortsetzung)",
       "kind": "lesson",
       "startGlobalPage": 185,
       "startPrintedPage": 177,
@@ -9783,6 +9820,7 @@
     },
     {
       "number": 38,
+      "title": "Alles zu seiner Zeit",
       "kind": "lesson",
       "startGlobalPage": 191,
       "startPrintedPage": 183,
@@ -10057,6 +10095,7 @@
     },
     {
       "number": 39,
+      "title": "Die Zeiten \u00e4ndern sich",
       "kind": "lesson",
       "startGlobalPage": 195,
       "startPrintedPage": 187,
@@ -10319,6 +10358,7 @@
     },
     {
       "number": 40,
+      "title": "Der Autokauf",
       "kind": "lesson",
       "startGlobalPage": 199,
       "startPrintedPage": 191,
@@ -10597,6 +10637,7 @@
     },
     {
       "number": 41,
+      "title": "Die Stadt Dresden ist eine Reise wert",
       "kind": "lesson",
       "startGlobalPage": 205,
       "startPrintedPage": 197,
@@ -10864,6 +10905,7 @@
     },
     {
       "number": 42,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 211,
       "startPrintedPage": 203,
@@ -11234,6 +11276,7 @@
     },
     {
       "number": 43,
+      "title": "Die M\u00fccke",
       "kind": "lesson",
       "startGlobalPage": 217,
       "startPrintedPage": 209,
@@ -11562,6 +11605,7 @@
     },
     {
       "number": 44,
+      "title": "Der 31. Dezember",
       "kind": "lesson",
       "startGlobalPage": 221,
       "startPrintedPage": 213,
@@ -11807,6 +11851,7 @@
     },
     {
       "number": 45,
+      "title": "In der letzten Minute",
       "kind": "lesson",
       "startGlobalPage": 227,
       "startPrintedPage": 219,
@@ -12130,6 +12175,7 @@
     },
     {
       "number": 46,
+      "title": "\u201eDer Mensch denkt und Gott lenkt\u201d",
       "kind": "lesson",
       "startGlobalPage": 231,
       "startPrintedPage": 223,
@@ -12399,6 +12445,7 @@
     },
     {
       "number": 47,
+      "title": "Im Vorzimmer des Chefs",
       "kind": "lesson",
       "startGlobalPage": 237,
       "startPrintedPage": 229,
@@ -12679,6 +12726,7 @@
     },
     {
       "number": 48,
+      "title": "Ein schwieriger Samstagmorgen",
       "kind": "lesson",
       "startGlobalPage": 243,
       "startPrintedPage": 235,
@@ -12947,6 +12995,7 @@
     },
     {
       "number": 49,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 247,
       "startPrintedPage": 239,
@@ -13281,6 +13330,7 @@
     },
     {
       "number": 50,
+      "title": "Anzeigen f\u00fcr Ferienwohnungen",
       "kind": "lesson",
       "startGlobalPage": 255,
       "startPrintedPage": 247,
@@ -13544,6 +13594,7 @@
     },
     {
       "number": 51,
+      "title": "Eine Radiosendung",
       "kind": "lesson",
       "startGlobalPage": 261,
       "startPrintedPage": 253,
@@ -13810,6 +13861,7 @@
     },
     {
       "number": 52,
+      "title": "P\u00fcnktlichkeit ist die H\u00f6flichkeit der K\u00f6nige",
       "kind": "lesson",
       "startGlobalPage": 267,
       "startPrintedPage": 259,
@@ -14061,6 +14113,7 @@
     },
     {
       "number": 53,
+      "title": "Er ist nicht auf den Mund gefallen (Fortsetzung)",
       "kind": "lesson",
       "startGlobalPage": 273,
       "startPrintedPage": 265,
@@ -14390,6 +14443,7 @@
     },
     {
       "number": 54,
+      "title": "Kopf hoch!",
       "kind": "lesson",
       "startGlobalPage": 277,
       "startPrintedPage": 269,
@@ -14683,6 +14737,7 @@
     },
     {
       "number": 55,
+      "title": "\u201eDer Apfel f\u00e4llt nicht weit vom Stamm\u201d",
       "kind": "lesson",
       "startGlobalPage": 283,
       "startPrintedPage": 275,
@@ -15024,6 +15079,7 @@
     },
     {
       "number": 56,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 289,
       "startPrintedPage": 281,
@@ -15430,6 +15486,7 @@
     },
     {
       "number": 57,
+      "title": "Wer wird das alles essen?",
       "kind": "lesson",
       "startGlobalPage": 297,
       "startPrintedPage": 289,
@@ -15673,6 +15730,7 @@
     },
     {
       "number": 58,
+      "title": "Der Hase und der Igel (nach einem M\u00e4rchen der Br\u00fcder Grimm)",
       "kind": "lesson",
       "startGlobalPage": 303,
       "startPrintedPage": 295,
@@ -15966,6 +16024,7 @@
     },
     {
       "number": 59,
+      "title": "Der Hase und der Igel (Fortsetzung)",
       "kind": "lesson",
       "startGlobalPage": 309,
       "startPrintedPage": 301,
@@ -16245,6 +16304,7 @@
     },
     {
       "number": 60,
+      "title": "Der Hase und der Igel (Fortsetzung und Ende)",
       "kind": "lesson",
       "startGlobalPage": 315,
       "startPrintedPage": 307,
@@ -16537,6 +16597,7 @@
     },
     {
       "number": 61,
+      "title": "Ein \u00fcberzeugendes Argument",
       "kind": "lesson",
       "startGlobalPage": 321,
       "startPrintedPage": 313,
@@ -16858,6 +16919,7 @@
     },
     {
       "number": 62,
+      "title": "Eine schlaue Verk\u00e4uferin im Reiseb\u00fcro",
       "kind": "lesson",
       "startGlobalPage": 325,
       "startPrintedPage": 317,
@@ -17227,6 +17289,7 @@
     },
     {
       "number": 63,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 331,
       "startPrintedPage": 323,
@@ -17665,6 +17728,7 @@
     },
     {
       "number": 64,
+      "title": "Berlin, die Hauptstadt der Bundesrepublik Deutschland",
       "kind": "lesson",
       "startGlobalPage": 339,
       "startPrintedPage": 331,
@@ -18003,6 +18067,7 @@
     },
     {
       "number": 65,
+      "title": "Wie wird man reich? Loriot verr\u00e4t uns das Geheimnis",
       "kind": "lesson",
       "startGlobalPage": 347,
       "startPrintedPage": 339,
@@ -18247,6 +18312,7 @@
     },
     {
       "number": 66,
+      "title": "Ein perfekter Ehemann",
       "kind": "lesson",
       "startGlobalPage": 353,
       "startPrintedPage": 345,
@@ -18545,6 +18611,7 @@
     },
     {
       "number": 67,
+      "title": "Und was ist f\u00fcr Sie das Paradies?",
       "kind": "lesson",
       "startGlobalPage": 357,
       "startPrintedPage": 349,
@@ -18825,6 +18892,7 @@
     },
     {
       "number": 68,
+      "title": "Zehn Fragen zu Ihrer Allgemeinbildung",
       "kind": "lesson",
       "startGlobalPage": 363,
       "startPrintedPage": 355,
@@ -19310,6 +19378,7 @@
     },
     {
       "number": 69,
+      "title": "Man nimmt sich niemals genug in Acht",
       "kind": "lesson",
       "startGlobalPage": 369,
       "startPrintedPage": 361,
@@ -19676,6 +19745,7 @@
     },
     {
       "number": 70,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 373,
       "startPrintedPage": 365,
@@ -20026,6 +20096,7 @@
     },
     {
       "number": 71,
+      "title": "\u201eVater werden ist nicht schwer, Vater sein dagegen sehr.\u201d",
       "kind": "lesson",
       "startGlobalPage": 383,
       "startPrintedPage": 375,
@@ -20368,6 +20439,7 @@
     },
     {
       "number": 72,
+      "title": "Dreimal d\u00fcrfen Sie raten",
       "kind": "lesson",
       "startGlobalPage": 387,
       "startPrintedPage": 379,
@@ -20719,6 +20791,7 @@
     },
     {
       "number": 73,
+      "title": "Ein Tierfreund",
       "kind": "lesson",
       "startGlobalPage": 395,
       "startPrintedPage": 387,
@@ -21011,6 +21084,7 @@
     },
     {
       "number": 74,
+      "title": "\u201eIch bin von Kopf bis Fu\u00df auf Liebe eingestellt\u201d",
       "kind": "lesson",
       "startGlobalPage": 399,
       "startPrintedPage": 391,
@@ -21353,6 +21427,7 @@
     },
     {
       "number": 75,
+      "title": "\u201eWas der Bauer nicht kennt, isst er nicht.\u201d",
       "kind": "lesson",
       "startGlobalPage": 407,
       "startPrintedPage": 399,
@@ -21705,6 +21780,7 @@
     },
     {
       "number": 76,
+      "title": "Im Dunkeln geschehen komische Dinge",
       "kind": "lesson",
       "startGlobalPage": 413,
       "startPrintedPage": 405,
@@ -22019,6 +22095,7 @@
     },
     {
       "number": 77,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 417,
       "startPrintedPage": 409,
@@ -22520,6 +22597,7 @@
     },
     {
       "number": 78,
+      "title": "Der Vorteil flexibler Arbeitszeiten",
       "kind": "lesson",
       "startGlobalPage": 425,
       "startPrintedPage": 417,
@@ -22834,6 +22912,7 @@
     },
     {
       "number": 79,
+      "title": "Auf der Autobahn",
       "kind": "lesson",
       "startGlobalPage": 431,
       "startPrintedPage": 423,
@@ -23148,6 +23227,7 @@
     },
     {
       "number": 80,
+      "title": "Eine positive oder negative Antwort?",
       "kind": "lesson",
       "startGlobalPage": 437,
       "startPrintedPage": 429,
@@ -23430,6 +23510,7 @@
     },
     {
       "number": 81,
+      "title": "Ein nicht ganz allt\u00e4gliches Vorstellungsgespr\u00e4ch",
       "kind": "lesson",
       "startGlobalPage": 443,
       "startPrintedPage": 435,
@@ -23727,6 +23808,7 @@
     },
     {
       "number": 82,
+      "title": "Ein nicht ganz allt\u00e4gliches Vorstellungsgespr\u00e4ch (Fortsetzung)",
       "kind": "lesson",
       "startGlobalPage": 449,
       "startPrintedPage": 441,
@@ -24042,6 +24124,7 @@
     },
     {
       "number": 83,
+      "title": "Genial oder verr\u00fcckt?",
       "kind": "lesson",
       "startGlobalPage": 455,
       "startPrintedPage": 447,
@@ -24385,6 +24468,7 @@
     },
     {
       "number": 84,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 461,
       "startPrintedPage": 453,
@@ -24916,6 +25000,7 @@
     },
     {
       "number": 85,
+      "title": "Wie wird das Fr\u00fchst\u00fccksei gegessen? (Benimmregeln zum K\u00f6pfen eines weichen Eies)",
       "kind": "lesson",
       "startGlobalPage": 469,
       "startPrintedPage": 461,
@@ -25133,6 +25218,7 @@
     },
     {
       "number": 86,
+      "title": "Wie wird das Fr\u00fchst\u00fccksei gegessen? (Fortsetzung)",
       "kind": "lesson",
       "startGlobalPage": 475,
       "startPrintedPage": 467,
@@ -25411,6 +25497,7 @@
     },
     {
       "number": 87,
+      "title": "Willkommen auf der Wies\u2019n!",
       "kind": "lesson",
       "startGlobalPage": 481,
       "startPrintedPage": 473,
@@ -25748,6 +25835,7 @@
     },
     {
       "number": 88,
+      "title": "Unsere Vorfahren, die Affen",
       "kind": "lesson",
       "startGlobalPage": 487,
       "startPrintedPage": 479,
@@ -26114,6 +26202,7 @@
     },
     {
       "number": 89,
+      "title": "Ein Interview im Radio mit Herrn \u201eSt\u00f6ffche\u201d, dem Apfelwein-K\u00f6nig",
       "kind": "lesson",
       "startGlobalPage": 493,
       "startPrintedPage": 485,
@@ -26472,6 +26561,7 @@
     },
     {
       "number": 90,
+      "title": "Ein perfekter Plan",
       "kind": "lesson",
       "startGlobalPage": 501,
       "startPrintedPage": 493,
@@ -26757,6 +26847,7 @@
     },
     {
       "number": 91,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 507,
       "startPrintedPage": 499,
@@ -27173,6 +27264,7 @@
     },
     {
       "number": 92,
+      "title": "Der verst\u00e4ndnisvolle Blumenh\u00e4ndler",
       "kind": "lesson",
       "startGlobalPage": 513,
       "startPrintedPage": 505,
@@ -27535,6 +27627,7 @@
     },
     {
       "number": 93,
+      "title": "Bewahren Sie die Ruhe, wenn m\u00f6glich!",
       "kind": "lesson",
       "startGlobalPage": 519,
       "startPrintedPage": 511,
@@ -27812,6 +27905,7 @@
     },
     {
       "number": 94,
+      "title": "Noch einmal Gl\u00fcck gehabt!",
       "kind": "lesson",
       "startGlobalPage": 525,
       "startPrintedPage": 517,
@@ -28156,6 +28250,7 @@
     },
     {
       "number": 95,
+      "title": "Wenn sie das gewusst h\u00e4tte\u2026",
       "kind": "lesson",
       "startGlobalPage": 529,
       "startPrintedPage": 521,
@@ -28482,6 +28577,7 @@
     },
     {
       "number": 96,
+      "title": "Auf Regen folgt Sonnenschein",
       "kind": "lesson",
       "startGlobalPage": 535,
       "startPrintedPage": 527,
@@ -28821,6 +28917,7 @@
     },
     {
       "number": 97,
+      "title": "Wenn es doch nur schneien w\u00fcrde!",
       "kind": "lesson",
       "startGlobalPage": 541,
       "startPrintedPage": 533,
@@ -29185,6 +29282,7 @@
     },
     {
       "number": 98,
+      "title": "Wiederholung \u2013 Review",
       "kind": "review",
       "startGlobalPage": 549,
       "startPrintedPage": 541,
@@ -29767,6 +29865,7 @@
     },
     {
       "number": 99,
+      "title": "Ohne Flei\u00df kein Preis",
       "kind": "lesson",
       "startGlobalPage": 559,
       "startPrintedPage": 551,
@@ -30091,6 +30190,7 @@
     },
     {
       "number": 100,
+      "title": "Ende gut, alles gut",
       "kind": "lesson",
       "startGlobalPage": 565,
       "startPrintedPage": 557,

@@ -1,8 +1,8 @@
 # Prepared Assimil German course
 
-This directory contains page and audio metadata for the supplied 614-page scan. It does not contain the PDF, book text, recordings, or speech model. Import those files locally on the device; the index lets the study app find the lesson without asking for page numbers or audio choices.
+This directory contains lesson titles, page mappings, and audio metadata for the supplied 614-page scan. It does not contain the PDF, lesson dialogue text, recordings, or speech model. Import those files locally on the device; the index lets the study app find the lesson without asking for page numbers or audio choices.
 
-`assimil-german.index.json` is the generated index. `book-layout.json` stores the reviewed crop coordinates so the scan can be prepared again without repeating OCR or crop selection.
+`assimil-german.index.json` is the generated index. `book-layout.json` stores the reviewed crop coordinates so the scan can be prepared again without repeating OCR or crop selection. `lesson-titles.json` contains the 100 titles checked visually against the scan, with OCR mistakes and footnote markers removed. Book preprocessing includes these headings in the index.
 
 The completed batch includes 100 recording matches, 100 dialogue ranges, and 1,296 draft sentence segments. Automatic sentence checks passed for 22 lessons; 215 boundaries across the other 78 lessons are flagged for review. The median agreement between recognized speech and scanned dialogue text is 96.99%. This measures text matching, not timing accuracy. See `coverage.json` for the lesson lists and `lesson-map.csv` for a readable page/audio map.
 
@@ -25,7 +25,7 @@ The first six recordings have a repeated reading. Waveform correlation aligns th
 
 Sentence timing uses local speech recognition, punctuation from the scanned book, and measured audio silences. The index records text agreement and uncertain boundaries. `auto-aligned` means automatic checks passed; it is not a manual listening review. `needs-review` identifies cases where OCR, recognition, or a missing pause makes a boundary uncertain. Keep these states distinct when using the index. If a numbered line contains several sentences, its verified line timing alone does not establish the internal sentence cuts.
 
-All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for playback; they add short padding to avoid clipping consonants. The app can seek to a segment, pause at its end, and offer Repeat / Next without decoding waveforms or loading a speech model. Dialogue ranges allow blind listening and read-along to avoid the exercise section. Blind listening extends through `repeatDialogue` when present, so a single listen includes both recorded readings. Other steps keep the initial dialogue range. The timing editor saves corrections to the current sentence without changing neighboring sentences; remaining draft flags are preserved, including in backups.
+All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for sentence playback; they add short padding to avoid clipping consonants. At a sentence pause, Play continues from the playhead to the next sentence ending; Repeat explicitly seeks back. After the final sentence, Play continues through the rest of the file. This uses the prepared cuts without decoding waveforms or loading a speech model. For whole-lesson playback the app starts at zero, including the spoken lesson number and title, and ends at the prepared dialogue boundary before exercises. Blind listening extends through `repeatDialogue` when present, so a single listen includes both recorded readings. The timing editor saves corrections to the current sentence without changing neighboring sentences; remaining draft flags are preserved, including in backups.
 
 ## Run preprocessing on a laptop
 
