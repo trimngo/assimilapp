@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences} from '../dist/course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue} from '../dist/course-data.js';
 const index=JSON.parse(readFileSync(new URL('../dist/course-index.json',import.meta.url)));
 const books=index.book.sources.map(source=>({id:source.id,kind:'pdf',name:source.filename,size:source.bytes,sha256:source.sha256}));
 
@@ -50,6 +50,18 @@ test('prepared sentence padding stays ordered and flags remain visible',()=>{
     for(let i=0;i<spans.length;i++){assert(spans[i].start>=0);assert(spans[i].end>spans[i].start);assert(spans[i].end<=lesson.audio.duration);if(i)assert(spans[i].start>=spans[i-1].end-1e-8);if(spans[i].needsReview)flagged++;}
   }
   assert(flagged>0);
+});
+test('blind listening includes both recorded readings without extending ordinary dialogue playback',()=>{
+  for(const lesson of index.lessons){
+    const single=preparedDialogue(lesson),blind=preparedDialogue(lesson,true);
+    assert.deepEqual(single,lesson.audio.dialogue);
+    assert.equal(blind.start,single.start);
+    if(lesson.audio.repeatDialogue){
+      assert(blind.end>=lesson.audio.repeatDialogue.end);assert(blind.end>single.end);assert(blind.end<=lesson.audio.duration);
+    }else assert.deepEqual(blind,single);
+  }
+  const first=index.lessons[0];assert(preparedDialogue(first,true).end>47);assert(preparedDialogue(first).end<21);
+  assert.equal(preparedDialogue(null,true),null);
 });
 test('hosted metadata equals the reviewed source index',()=>{
   assert.deepEqual(index,JSON.parse(readFileSync(new URL('../course/assimil-german.index.json',import.meta.url))));

@@ -25,7 +25,7 @@ The first six recordings have a repeated reading. Waveform correlation aligns th
 
 Sentence timing uses local speech recognition, punctuation from the scanned book, and measured audio silences. The index records text agreement and uncertain boundaries. `auto-aligned` means automatic checks passed; it is not a manual listening review. `needs-review` identifies cases where OCR, recognition, or a missing pause makes a boundary uncertain. Keep these states distinct when using the index. If a numbered line contains several sentences, its verified line timing alone does not establish the internal sentence cuts.
 
-All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for playback; they add short padding to avoid clipping consonants. The app can seek to a segment, pause at its end, and offer Repeat / Next without decoding waveforms or loading a speech model. Dialogue ranges allow blind listening and read-along to avoid the exercise section.
+All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for playback; they add short padding to avoid clipping consonants. The app can seek to a segment, pause at its end, and offer Repeat / Next without decoding waveforms or loading a speech model. Dialogue ranges allow blind listening and read-along to avoid the exercise section. Blind listening extends through `repeatDialogue` when present, so a single listen includes both recorded readings. Other steps keep the initial dialogue range. The timing editor saves corrections to the current sentence without changing neighboring sentences; remaining draft flags are preserved, including in backups.
 
 ## Run preprocessing on a laptop
 

@@ -35,8 +35,15 @@ export function validateSegments(segments, duration = Infinity) {
   return segments.map((segment,i) => {
     const start=Number(segment.start), end=Number(segment.end);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start<0 || end<=start || start<previousEnd-.005 || end>duration+.1) throw new Error(`Check sentence ${i+1}: times must be ordered, non-overlapping, and within the recording.`);
-    previousEnd=end;return {start:+start.toFixed(2),end:+end.toFixed(2)};
+    previousEnd=end;return {start:+start.toFixed(2),end:+end.toFixed(2),...(segment.needsReview?{needsReview:true}:{})};
   });
+}
+export function replaceSegment(segments,index,times,duration=Infinity) {
+  if(!Number.isInteger(index)||index<0||index>=segments.length)throw new Error('Choose a sentence to adjust.');
+  const next=segments.map(segment=>({...segment}));
+  next[index]={...next[index],start:+Number(times.start).toFixed(2),end:+Number(times.end).toFixed(2),needsReview:false};
+  validateSegments(next,duration);
+  return next;
 }
 export function parseSegments(text, duration) {
   return validateSegments(text.trim().split(/\n+/).filter(Boolean).map(line=>{

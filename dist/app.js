@@ -5,7 +5,7 @@ import {hashFile} from './file-hash.js';
 const $ = id => document.getElementById(id);
 const steps = [
   ['Review','Listen to the previous two or three lessons. Tap Play review to listen to them in order.',''],
-  ['Blind listening','Listen to the new lesson twice without looking at the book.','Tap Listen twice. Playback stops after the second listen.'],
+  ['Blind listening','Listen to the new lesson twice without looking at the book.','Each listen includes both recorded readings when present. Playback stops after the second listen.'],
   ['Understand','Open the book and read the German, English translation, and notes.',''],
   ['Read along','Play the lesson while following the German text in your book.',''],
   ['Shadowing','Listen to one sentence, then repeat it aloud. After that, speak with the audio—with the text, then without.',''],
@@ -20,9 +20,8 @@ let courseIndex = null;
 let layoutProfile;
 const size = bytes => bytes < 1048576 ? `${(bytes/1024).toFixed(0)} KB` : `${(bytes/1048576).toFixed(1)} MB`;
 function notice(message) { clearTimeout(noticeTimer); $('notice').textContent=message; $('notice').hidden=false; noticeTimer=setTimeout(()=>$('notice').hidden=true,7000); }
-function showTab(tab) { if (!['study','library','setup'].includes(tab)) tab='study'; document.querySelectorAll('.tab').forEach(el=>el.hidden=el.id!==tab); document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab)); $('app-menu').open=false; history.replaceState(null,'',`#${tab}`);document.dispatchEvent(new Event('study-navigation')); }
+function showTab(tab) { if (!['study','library','setup'].includes(tab)) tab='study'; document.querySelectorAll('.tab').forEach(el=>el.hidden=el.id!==tab); document.querySelectorAll('[data-tab]').forEach(el=>el.classList.toggle('active',el.dataset.tab===tab)); $('lesson-controls').hidden=$('step-navigation').hidden=tab!=='study';$('return-study').hidden=tab==='study';$('app-menu').open=false; history.replaceState(null,'',`#${tab}`);document.dispatchEvent(new Event('study-navigation')); }
 document.querySelectorAll('[data-tab],[data-go]').forEach(el=>el.addEventListener('click',()=>showTab(el.dataset.tab||el.dataset.go)));
-document.querySelector('.brand').addEventListener('click',()=>showTab('study'));
 function openDB() { return new Promise((resolve,reject)=>{const req=indexedDB.open('german-study',1); req.onupgradeneeded=()=>{const d=req.result; d.createObjectStore('files',{keyPath:'id'}); d.createObjectStore('blobs'); d.createObjectStore('state');}; req.onsuccess=()=>{req.result.onversionchange=()=>req.result.close(); resolve(req.result);}; req.onerror=()=>reject(req.error);}); }
 function operation(store, mode, fn) { return new Promise((resolve,reject)=>{const tx=db.transaction(store,mode); let result; try { const req=fn(tx.objectStore(store)); if(req)req.onsuccess=()=>result=req.result; }catch(e){reject(e);return;} tx.oncomplete=()=>resolve(result); tx.onerror=()=>reject(tx.error); tx.onabort=()=>reject(tx.error||new Error('Storage operation interrupted.'));}); }
 const read = (store,key) => operation(store,'readonly',s=>s.get(key));
@@ -103,8 +102,8 @@ async function changeLesson(value) { const lesson=Number(value);if(!Number.isInt
 $('lesson').addEventListener('change',e=>changeLesson(e.target.value).catch(e=>notice(e.message)));
 $('lesson-back').addEventListener('click',()=>changeLesson(progress.lesson-1).catch(e=>notice(e.message)));
 $('lesson-next').addEventListener('click',()=>changeLesson(progress.lesson+1).catch(e=>notice(e.message)));
-$('previous').addEventListener('click',()=>{progress.step=Math.max(0,progress.step-1);renderProgress();saveProgress().catch(()=>{});});
-$('next').addEventListener('click',()=>{if(progress.step===7){if(progress.lesson===9999){notice('You have reached the maximum lesson number.');return;}changeLesson(progress.lesson+1).catch(e=>notice(e.message));}else{progress.step++;renderProgress();saveProgress().catch(()=>{});}});
+$('previous').addEventListener('click',()=>{progress.step=Math.max(0,progress.step-1);renderProgress();window.scrollTo({top:0,behavior:'smooth'});saveProgress().catch(()=>{});});
+$('next').addEventListener('click',()=>{if(progress.step===7){if(progress.lesson===9999){notice('You have reached the maximum lesson number.');return;}changeLesson(progress.lesson+1).catch(e=>notice(e.message));}else{progress.step++;renderProgress();window.scrollTo({top:0,behavior:'smooth'});saveProgress().catch(()=>{});}});
 function renderAudioOptions(){const files=library.filter(x=>x.kind==='audio').sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));$('audio-select').replaceChildren(new Option(files.length?'Choose a recording…':'Import audio to begin',''),...files.map(x=>new Option(x.name,x.id)));$('audio-select').value=progress.tracks[progress.lesson]||'';}
 async function loadAudio(id){const request=++playbackRequest;$('player').pause();$('player').removeAttribute('src');$('player').load();if(audioUrl)URL.revokeObjectURL(audioUrl);audioUrl=null;activeAudioId='';const meta=library.find(x=>x.id===id);if(!meta){$('audio-info').textContent='No audio selected.';return;}$('audio-info').textContent='Opening stored recording…';try{const file=await getFile(meta);if(request!==playbackRequest)return;audioUrl=URL.createObjectURL(file.type===meta.type?file:file.slice(0,file.size,meta.type));activeAudioId=id;$('player').src=audioUrl;document.dispatchEvent(new CustomEvent('audio-loaded',{detail:{id}}));$('audio-info').textContent=`Stored on this device · ${size(meta.size)}`;}catch(e){if(request===playbackRequest){$('audio-info').textContent='Recording unavailable. Reimport it from your originals.';notice(e.message);}}}
 $('audio-select').addEventListener('change',async e=>{const id=e.target.value;study?.stopSession();progress.tracks[progress.lesson]=id;try{await Promise.all([saveProgress(),loadAudio(id)]);}catch(e){notice(e.message);}});

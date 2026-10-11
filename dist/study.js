@@ -1,6 +1,6 @@
 import {BookReader,validateCrop} from './pdf-reader.js';
-import {detectSegments,validateSegments,parseSegments,formatTime} from './audio-tools.js';
-import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences} from './course-data.js';
+import {detectSegments,validateSegments,parseSegments,formatTime,replaceSegment} from './audio-tools.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue} from './course-data.js';
 import {verifyBookLayout} from './book-layout.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
@@ -11,28 +11,75 @@ export async function connectStudy(api){
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='',shadowMode='sentence';
   const player=$('player');
   $('audio-select').insertAdjacentHTML('afterend',`<label class="field speed-field">Playback speed<select id="speed"><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>`);
-  $('player').insertAdjacentHTML('beforebegin',`<div id="routine-audio"><div id="review-controls" hidden><details><summary>Review options</summary><label class="field">Previous lessons<select id="review-count"><option value="3">Last three</option><option value="2">Last two</option></select></label></details><p id="review-list" class="note"></p><button id="start-review" class="primary">Play review</button></div><div id="blind-controls" hidden><button id="start-blind" class="primary">Listen twice</button><p id="blind-status" class="note" role="status">Two listens, with the book hidden.</p></div><div id="shadow-controls" hidden><label class="field">Practice mode<select id="shadow-mode"><option value="sentence">Pause & repeat each sentence</option><option value="with">Speak along with text</option><option value="without">Speak along without text</option></select></label><div id="sentence-controls"><p id="sentence-status" class="note" role="status"></p><div class="sentence-actions"><button id="sentence-back" class="secondary" aria-label="Previous sentence">←</button><button id="sentence-play" class="primary">Repeat sentence</button><button id="sentence-next" class="secondary" aria-label="Next sentence">→</button></div><details><summary>Practice options</summary><label class="check"><input id="sentence-auto" type="checkbox"> Continue after a pause</label><label class="field">Time to repeat<select id="sentence-gap"><option value="match">Length of the sentence</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label><div id="sentence-list" class="sentence-list"></div><details id="timing-editor"><summary>Adjust sentence boundaries</summary><p class="note">Times are seconds: one start, end pair per line. Adjust a cut if it interrupts a sentence. Timings save on this device.</p><textarea id="timing-text" rows="7" aria-label="Sentence start and end times" placeholder="0.00, 3.20\n3.60, 6.10"></textarea><div class="backup-actions"><button id="save-timings" class="secondary">Save timings</button><button id="mark-boundary" class="secondary">Split at playhead</button></div></details><button id="use-saved-timings" class="text-button" hidden>Use saved custom timings</button><button id="use-prepared" class="text-button" hidden>Use prepared sentence timings</button><button id="detect-sentences" class="text-button">Detect pauses for a different recording</button></details></div></div><p id="play-status" class="note" role="status"></p></div>`);
+  $('audio-options').insertAdjacentHTML('beforeend',`<details id="sentence-timing-options" hidden>
+    <summary>Adjust this sentence</summary><p id="timing-sentence" class="note"></p>
+    <div class="timing-bound"><label class="field">Start (seconds)<input id="timing-start" type="number" min="0" step="0.01" inputmode="decimal" required></label><div class="timing-nudges"><button class="secondary" data-timing-edge="start" data-delta="-0.05" aria-label="Start 0.05 seconds earlier">−0.05</button><button class="secondary" data-timing-edge="start" data-delta="0.05" aria-label="Start 0.05 seconds later">+0.05</button></div><button id="timing-start-playhead" class="text-button">Use playhead</button></div>
+    <div class="timing-bound"><label class="field">End (seconds)<input id="timing-end" type="number" min="0" step="0.01" inputmode="decimal" required></label><div class="timing-nudges"><button class="secondary" data-timing-edge="end" data-delta="-0.05" aria-label="End 0.05 seconds earlier">−0.05</button><button class="secondary" data-timing-edge="end" data-delta="0.05" aria-label="End 0.05 seconds later">+0.05</button></div><button id="timing-end-playhead" class="text-button">Use playhead</button></div>
+    <div class="backup-actions"><button id="preview-sentence" class="secondary">Preview</button><button id="save-sentence" class="primary">Save sentence</button><button id="reset-sentence-edit" class="text-button">Discard changes</button></div>
+    <p id="timing-edit-status" class="note" role="status">Adjust a time, preview the sentence, then save.</p>
+  </details>`);
+  $('player').insertAdjacentHTML('beforebegin',`<div id="routine-audio"><div id="review-controls" hidden><details><summary>Review options</summary><label class="field">Previous lessons<select id="review-count"><option value="3">Last three</option><option value="2">Last two</option></select></label></details><p id="review-list" class="note"></p><button id="start-review" class="primary">Play review</button></div><div id="blind-controls" hidden><button id="start-blind" class="primary">Listen twice</button><p id="blind-status" class="note" role="status">Each listen includes both readings when recorded. The book stays hidden.</p></div><div id="shadow-controls" hidden><label class="field">Practice mode<select id="shadow-mode"><option value="sentence">Pause & repeat each sentence</option><option value="with">Speak along with text</option><option value="without">Speak along without text</option></select></label><div id="sentence-controls"><p id="sentence-status" class="note" role="status"></p><div class="sentence-actions"><button id="sentence-back" class="secondary" aria-label="Previous sentence">←</button><button id="sentence-play" class="primary">Repeat sentence</button><button id="sentence-next" class="secondary" aria-label="Next sentence">→</button></div><details><summary>Practice options</summary><label class="check"><input id="sentence-auto" type="checkbox"> Continue after a pause</label><label class="field">Time to repeat<select id="sentence-gap"><option value="match">Length of the sentence</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label><div id="sentence-list" class="sentence-list"></div><details id="timing-editor"><summary>Edit all sentence timings</summary><p class="note">Times are seconds: one start, end pair per line. Adjust a cut if it interrupts a sentence. Timings save on this device.</p><textarea id="timing-text" rows="7" aria-label="Sentence start and end times" placeholder="0.00, 3.20\n3.60, 6.10"></textarea><div class="backup-actions"><button id="save-timings" class="secondary">Save timings</button><button id="mark-boundary" class="secondary">Split at playhead</button></div></details><button id="use-saved-timings" class="text-button" hidden>Use saved custom timings</button><button id="use-prepared" class="text-button" hidden>Use prepared sentence timings</button><button id="detect-sentences" class="text-button">Detect pauses for a different recording</button></details></div></div><p id="play-status" class="note" role="status"></p></div>`);
   $('book-card').insertAdjacentHTML('beforeend',`<details id="manual-book"><summary>Book options</summary><button id="prepared-book" class="text-button">Use automatically matched pages</button><div class="reader-tools"><label class="field">Book<select id="book-select"></select></label><label class="check"><input id="spread" type="checkbox" checked> Two-page view in landscape</label><button id="configure-pages" class="text-button">Set lesson pages</button></div><details id="page-settings"><summary>Lesson pages & English area</summary><p class="note">Use PDF page numbers, which may differ from printed book numbers. Set a lesson once; later lessons can follow the same page pattern.</p><div class="page-fields"><label class="field">First page<input id="page-start" type="number" min="1" value="1"></label><label class="field">Last page<input id="page-end" type="number" min="1" value="2"></label><label class="field">English page<input id="english-page" type="number" min="1" value="2"></label></div><label class="check"><input id="page-pattern" type="checkbox"> Estimate other lessons using this page count</label><div class="backup-actions"><button id="preview-pages" class="secondary">Preview pages</button><button id="save-pages" class="primary">Save lesson pages</button></div><hr><p class="note">Choose the English page above, then select only the translation area. This works with scanned pages and needs no text recognition.</p><div class="backup-actions"><button id="select-english" class="secondary">Select English area</button><button id="reset-crop" class="secondary">Use whole English page</button><button id="save-crop" class="primary" disabled>Save English area</button></div><label class="check"><input id="reuse-crop" type="checkbox" checked> Use this English layout for other lessons</label><p id="mapping-status" class="note" role="status"></p></details></details><div id="recall-controls" hidden><button id="reveal-german" class="secondary">Show German to check</button><p class="note">Try saying the German before revealing the full lesson.</p></div><p id="reader-status" class="note" role="status"></p><div id="pdf-pages" class="pdf-pages"></div>`);
   document.body.insertAdjacentHTML('beforeend',`<div id="mini-player" hidden><button id="mini-play" class="primary" aria-label="Play recording">▶</button><div><span id="mini-title"></span><small id="mini-time">0:00</small></div><button id="mini-repeat" class="secondary" aria-label="Repeat current sentence or recording">↺</button></div>`);
   $('book-card').append($('manual-book'));
   const reader=new BookReader($('pdf-pages'),$('reader-status'));
-  let recallRevealed=false;
+  let recallRevealed=false,timingKey='',timingSaved='';
   const getBook=()=>api.getLibrary().find(x=>x.id===course.activeBook&&x.kind==='pdf')||api.getLibrary().find(x=>x.kind==='pdf');
   const bookSettings=()=>{const book=getBook();if(!book)return null;return course.books[book.id] ||= {pages:{}};};
   const audioLesson=()=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===api.getActiveAudioId()));
   const sentences=()=>{const id=api.getActiveAudioId(),prepared=preparedSentences(audioLesson());return course.segmentMode[id]==='custom'&&course.segments[id]?course.segments[id]:prepared.length?prepared:course.segments[id]||[];};
   const preparedPlan=recall=>lessonPages(api.getIndex(),api.getLibrary(),api.getProgress().lesson,recall);
   const hasPreparedBook=()=>api.getLibrary().some(file=>matchedSource(api.getIndex(),file)||matchedCombinedBook(api.getIndex(),file));
-  const dialogue=id=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id))?.audio.dialogue||{start:0,end:player.duration};
+  const dialogue=(id,includeRepeat=api.getProgress().step===1)=>preparedDialogue(matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id)),includeRepeat)||{start:0,end:player.duration};
   function saveCourse(){const snapshot=structuredClone(course);const attempt=courseQueue.then(()=>api.write('state','course',snapshot));courseQueue=attempt.catch(()=>{});return attempt.catch(error=>{api.notice('Could not save lesson setup. Check storage and export a backup.');throw error;});}
   function mapping(lesson){const settings=bookSettings();if(!settings)return null;if(settings.pages?.[lesson])return {...settings.pages[lesson],estimated:false};if(settings.pattern){const {baseLesson,basePage,span}=settings.pattern;const start=basePage+(lesson-baseLesson)*span;if(start<1)return null;const layout=settings.layout||{offset:Math.min(1,span-1),crop:fullCrop};return {start,end:start+span-1,englishPage:start+layout.offset,crop:layout.crop,estimated:true};}return null;}
   function stopSession(){session=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';player.pause();}
   function reviewTracks(){const p=api.getProgress(),n=Number($('review-count').value);return Array.from({length:Math.min(n,p.lesson-1)},(_,i)=>p.lesson-Math.min(n,p.lesson-1)+i).map(lesson=>({lesson,file:api.getLibrary().find(x=>x.id===p.tracks[lesson]&&x.kind==='audio')}));}
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
-  function refreshSentences(){const spans=sentences();segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];$('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';$('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;$('sentence-list').replaceChildren(...spans.map((span,i)=>{const button=document.createElement('button');button.textContent=String(i+1);button.className=i===segmentIndex?'selected':'';button.setAttribute('aria-label',`Sentence ${i+1}, ${formatTime(span.start)} to ${formatTime(span.end)}`);button.addEventListener('click',()=>{stopSession();segmentIndex=i;refreshSentences();});return button;}));$('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');}
+  function refreshSentences(){const spans=sentences();segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];$('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';$('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;$('sentence-list').replaceChildren(...spans.map((span,i)=>{const button=document.createElement('button');button.textContent=String(i+1);button.className=i===segmentIndex?'selected':'';button.setAttribute('aria-label',`Sentence ${i+1}, ${formatTime(span.start)} to ${formatTime(span.end)}`);button.addEventListener('click',()=>{stopSession();segmentIndex=i;refreshSentences();});return button;}));$('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');refreshTimingEditor();}
   function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||$('player').getBoundingClientRect().bottom>0;$('mini-title').textContent=file?.name||'';$('mini-time').textContent=`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;$('mini-play').textContent=player.paused?'Play':'Pause';$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');}
   async function play(){try{await player.play();$('play-status').textContent='';}catch(error){if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';else if(error.name!=='AbortError')api.notice('This recording could not play. Try the Play control again.');}}
   async function startSentence(){const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;player.currentTime=span.start;await play();scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
+  function refreshTimingEditor(force=false){
+    const span=sentences()[segmentIndex];
+    $('sentence-timing-options').hidden=!span||api.getProgress().step!==4||shadowMode!=='sentence';
+    if(!span){timingKey='';return;}
+    const key=`${api.getActiveAudioId()}:${segmentIndex}`,saved=`${span.start}:${span.end}`;
+    $('timing-sentence').textContent=`Sentence ${segmentIndex+1} of ${sentences().length} · use the lesson pages for context.`;
+    if(force||timingKey!==key||timingSaved!==saved){
+      timingKey=key;timingSaved=saved;$('timing-start').value=span.start.toFixed(2);$('timing-end').value=span.end.toFixed(2);
+      $('timing-edit-status').textContent='Adjust a time, preview the sentence, then save.';
+    }
+    for(const edge of ['start','end'])if(Number.isFinite(player.duration))$(`timing-${edge}`).max=player.duration.toFixed(2);
+  }
+  function timingChanged(){stopSession();$('timing-edit-status').textContent='Unsaved changes. Preview, then save sentence.';}
+  function editedSentences(){
+    if(!$('timing-start').value||!$('timing-end').value)throw new Error('Enter both start and end times, in seconds.');
+    if(!Number.isFinite(player.duration))throw new Error('Wait for the recording to finish loading.');
+    return replaceSegment(sentences(),segmentIndex,{start:$('timing-start').value,end:$('timing-end').value},player.duration);
+  }
+  for(const edge of ['start','end']){
+    $(`timing-${edge}`).addEventListener('input',timingChanged);
+    $(`timing-${edge}-playhead`).addEventListener('click',()=>{$(`timing-${edge}`).value=player.currentTime.toFixed(2);timingChanged();});
+  }
+  document.querySelectorAll('[data-timing-edge]').forEach(button=>button.addEventListener('click',()=>{
+    const input=$(`timing-${button.dataset.timingEdge}`);input.value=(Number(input.value)+Number(button.dataset.delta)).toFixed(2);timingChanged();
+  }));
+  $('reset-sentence-edit').addEventListener('click',()=>{stopSession();refreshTimingEditor(true);});
+  $('preview-sentence').addEventListener('click',async()=>{
+    try{
+      stopSession();const id=api.getActiveAudioId(),index=segmentIndex;await readyPlayer();if(id!==api.getActiveAudioId()||index!==segmentIndex)return;
+      const span=editedSentences()[segmentIndex];session={kind:'preview',span};player.loop=false;$('repeat').checked=false;
+      player.currentTime=span.start;$('timing-edit-status').textContent='Playing preview…';await play();scheduleBoundary();
+    }catch(error){$('timing-edit-status').textContent=error.message;api.notice(error.message);}
+  });
+  $('save-sentence').addEventListener('click',async()=>{
+    try{
+      const id=api.getActiveAudioId(),spans=editedSentences();if(!id)throw new Error('Select a recording first.');
+      stopSession();analysisGeneration++;course.segmentMode[id]='custom';course.segments[id]=spans;
+      await saveCourse();refreshSentences();$('timing-edit-status').textContent='Sentence timings saved on this device.';
+    }catch(error){$('timing-edit-status').textContent=error.message;api.notice(error.message);}
+  });
   function scheduleBoundary(){
     clearTimeout(boundaryTimer);if(!session||player.paused||session.finishing)return;
     const span=session.kind==='sentence'?sentences()[segmentIndex]:session.span;
@@ -61,14 +108,16 @@ export async function connectStudy(api){
   }
   async function beginRange(active,id){
     if(api.getActiveAudioId()!==id)await api.loadAudio(id);await readyPlayer();if(session!==active)return;
-    active.span=dialogue(id);active.finishing=false;player.currentTime=active.span.start;
+    active.span=dialogue(id,active.kind==='blind');active.finishing=false;player.currentTime=active.span.start;
     await play();scheduleBoundary();
   }
   async function finishRange(){
     const active=session;if(!active||active.finishing)return;
     if(active.kind==='sentence'){finishSentence();return;}
     active.finishing=true;clearTimeout(boundaryTimer);player.pause();
-    if(active.kind==='blind'){
+    if(active.kind==='preview'){
+      session=null;player.currentTime=active.span.end;$('timing-edit-status').textContent='Preview complete. Save sentence to keep these timings.';
+    }else if(active.kind==='blind'){
       active.played++;$('blind-status').textContent=`Listen ${active.played} of 2 complete.`;
       if(active.played<2){$('blind-status').textContent='Listen 2 of 2…';await beginRange(active,active.id);}
       else{session=null;$('blind-status').textContent='Both listens complete. Continue to Understand.';}
@@ -150,7 +199,7 @@ export async function connectStudy(api){
     const ticket=++generation,p={...api.getProgress()},key=`${p.lesson}:${p.step}`;
     if(stepKey!==key){stopSession();editingEnglish=false;recallRevealed=false;$('reveal-german').textContent='Show German to check';stepKey=key;reader.clear();
       if(p.step>0&&api.getActiveAudioId()!==(p.tracks[p.lesson]||''))await api.loadAudio(p.tracks[p.lesson]||'');
-      if(p.step===1){player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Two listens, with the book hidden.';}
+      if(p.step===1){player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Each listen includes both readings when recorded. The book stays hidden.';}
     }
     if(ticket!==generation)return;
     $('review-controls').hidden=p.step!==0;$('blind-controls').hidden=p.step!==1;$('shadow-controls').hidden=p.step!==4;$('repeat').disabled=p.step===1;

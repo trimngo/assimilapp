@@ -51,3 +51,12 @@ export function preparedSentences(lesson) {
     needsReview:!!span.needsReview
   }));
 }
+
+export function preparedDialogue(lesson, includeRepeat = false) {
+  const audio=lesson?.audio;
+  if(!audio?.dialogue)return null;
+  const range={...audio.dialogue};
+  if(includeRepeat&&audio.repeatDialogue)
+    range.end=Math.min(audio.duration,Math.max(range.end,audio.repeatDialogue.end+.1));
+  return range;
+}
