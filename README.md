@@ -23,6 +23,10 @@ Choose **Select English area**, drag a rectangle around the English translation,
 
 Shadowing proposes segments from pauses in the recording; they are not guaranteed linguistic sentence boundaries. Check them once and edit start/end times as needed, including removing introductions or combining phrases. Detection uses only the current recording, locally. Timings and page mappings are saved and included in progress backups.
 
+## Prepared course data
+
+The supplied split book and all 100 recordings have also been prepared outside the app. The [course index and preprocessing guide](course/README.md) provide reviewed lesson/page mappings, English recall crops, recording fingerprints, and audio timing metadata. The laptop tools can process an audio folder or the full ZIP incrementally, with optional local speech alignment. These prepared files are ready for a subsequent app integration; the current app still uses the setup controls described above.
+
 ## iPhone and offline use
 
 Open the site in Safari, use Share → Add to Home Screen, and import inside the installed app. Safari and Home Screen storage may differ. Wait for **App available offline**, then close the app, enable Airplane Mode, and reopen. Verify saved progress, playback, and lesson pages. Retain original materials and export a backup; browser storage retention is subject to iOS policies.
@@ -41,4 +45,4 @@ Buildless HTML/JavaScript. Files stream into OPFS where writable files are suppo
 
 The service worker caches the complete app shell atomically, including PDF dependencies, and replaces only caches with the app’s own prefix. For each release, update the version in `version.json`, `updates.js`, `sw.js`, and the HTML badge, and increment the matching shell cache names in `updates.js` and `sw.js`. The release JSON is network-only so stale installations can discover updates. Study materials are never part of the hosted source or service-worker cache.
 
-Run `npm test` for pause detection and timing validation checks; no installation or build is required. Browser checks covered review sequencing, two-pass listening, scanned PDF rendering, landscape spreads, page patterns, English cropping, reveal/hide, sentence pauses and replay, practice with/without text, backup/restore, offline restart, and preservation of legacy files/progress. The supplied first recording was also checked for pause detection. The original book exceeds the workspace attachment-transfer limit, so its exact page layout and actual iPhone rendering still need to be verified on the device.
+Run `npm test` for pause detection and timing validation checks; no installation or build is required. Browser checks covered review sequencing, two-pass listening, scanned PDF rendering, landscape spreads, page patterns, English cropping, reveal/hide, sentence pauses and replay, practice with/without text, backup/restore, offline restart, and preservation of legacy files/progress. The supplied first recording was also checked for pause detection. The split book's layout has since been mapped and its recall crops reviewed separately. Actual iPhone rendering still needs device testing. Run `python scripts/check_course.py` to validate the prepared course data.
