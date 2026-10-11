@@ -15,6 +15,11 @@ export function matchedSource(index, file) {
     ? index?.book.sources.find(source => source.sha256 === file.sha256) || null : null;
 }
 
+export function matchedCombinedBook(index, file) {
+  return file?.kind==='pdf' && !!index?.book.combinedLayoutSignature &&
+    file.verifiedBookLayout===index.book.combinedLayoutSignature;
+}
+
 export function matchedAudio(index, file) {
   return file?.kind === 'audio' && file.sha256
     ? index?.lessons.find(lesson => lesson.audio?.sha256 === file.sha256) || null : null;
@@ -31,8 +36,9 @@ export function lessonPages(index, library, number, recall = false) {
   const sources = new Map(library.filter(file => file.kind === 'pdf')
     .flatMap(file => {const source=matchedSource(index,file);return source ? [[source.id,file]] : [];}));
   const refs = recall ? lesson.englishRecall : lesson.studyPages;
-  return refs.map(ref => ({file:sources.get(ref.sourceId) || null, sourceId:ref.sourceId,
-    page:ref.sourcePage, globalPage:ref.globalPage, crop:pageCrop(ref.crop),
+  const combined=library.find(file=>matchedCombinedBook(index,file));
+  return refs.map(ref => ({file:combined||sources.get(ref.sourceId)||null, sourceId:ref.sourceId,
+    page:combined?ref.globalPage:ref.sourcePage, globalPage:ref.globalPage, crop:pageCrop(ref.crop),
     label:`Book page ${ref.globalPage-index.book.printedPageOffset}`}));
 }
 

@@ -15,7 +15,7 @@ The completed batch includes 100 recording matches, 100 dialogue ranges, and 1,2
 - Lesson 57 crosses the split between the first and second PDFs. References include both global and source-local page numbers.
 - Review lessons use their review dialogue, with translations sometimes on later or shared pages. Lesson 100 ends before the appendix. The uploaded files do not include the later glossaries listed in the contents.
 
-Page numbers are **1-based**. A crop is `[left, top, right, bottom]` normalized to that individual page. The original combined PDF needs its page layout verified before these references are applied to it. A recompressed PDF can also change its identity or coordinates; it should be checked before importing as this prepared edition.
+Page numbers are **1-based**. A crop is `[left, top, right, bottom]` normalized to that individual page. The app accepts the full 614-page book or the three parts. `combined-layout.json` stores hashes and position anchors prepared from every page of the split originals, without publishing book text. On import, a full PDF must match all pages before global references and reviewed crops are enabled. Dimensions, text order, and text positions are checked, tolerating small glyph or punctuation differences. The check uses the existing text layer and saves its result; no OCR runs in the app. PDFs with changed layouts or no usable text layer remain available for custom page settings.
 
 ## Audio coverage and pause controls
 
@@ -37,6 +37,7 @@ python scripts/preprocess_book.py 001-300.pdf 301-600.pdf 601-614.pdf \
   --alignment-text work/german-text.json
 python scripts/preprocess_audio.py /path/to/audio-folder
 python scripts/check_course.py
+node scripts/prepare_combined_layout.mjs 001-300.pdf 301-600.pdf 601-614.pdf
 ```
 
 The audio input can also be the full ZIP:
@@ -57,4 +58,4 @@ python scripts/preprocess_audio.py /path/to/audio-folder --force \
 
 The model runs locally during preparation. It is not part of the PWA. Private OCR text, model files, recordings, and analysis scratch files belong under ignored `work/` or outside this repository. `--report` selects a local processing report; `--output` writes a separate index and merges later batches into it.
 
-Optional `preprocess_book.py --export-pages work/pages` exports WebP pages for a future private import pack. The PWA now loads a copy of this index from `dist/course-index.json`, cached with its app shell. After changing prepared data, copy the reviewed index there and publish a versioned app release.
+Optional `preprocess_book.py --export-pages work/pages` exports WebP pages for a future private import pack. After rebuilding book mappings, rerun `prepare_combined_layout.mjs` with the exact three prepared PDFs to regenerate the full-book profile and its index signature. This script uses the bundled PDF.js and hash code and needs no Node dependencies. The PWA now loads a copy of this index from `dist/course-index.json`, cached with its app shell. After changing prepared data, copy the reviewed index there and publish a versioned app release.

@@ -33,7 +33,8 @@
       }
     ],
     "cropCoordinates": "normalized [left, top, right, bottom]; all page numbers are 1-based",
-    "recallReview": "All 208 translation crops visually checked against supplied scan"
+    "recallReview": "All 208 translation crops visually checked against supplied scan",
+    "combinedLayoutSignature": "46939738da73934e699b822a88f81afa845cf820e268590dc21a32433a3ca29b"
   },
   "lessons": [
     {

@@ -15,7 +15,7 @@
     <a href="#study" class="brand">German Study</a>
     <details id="app-menu"><summary>Menu</summary><nav aria-label="Main navigation">
       <button data-tab="study">Study</button><button data-tab="library">My materials</button><button data-tab="setup">Help & updates</button>
-      <span class="badge" id="app-version">v3.0.0</span>
+      <span class="badge" id="app-version">v3.1.0</span>
     </nav></details>
   </header>
   <main>
@@ -36,7 +36,7 @@
         </details>
       </article>
       <article id="book-card" class="book-card">
-        <h2 id="book-title">Lesson pages</h2><p id="book-info" class="note">Import the three book PDFs once.</p>
+        <h2 id="book-title">Lesson pages</h2><p id="book-info" class="note">Import your full book PDF once.</p>
         <button id="open-book" class="text-button" disabled hidden>Open stored PDF ↗</button>
       </article>
       <div class="step-actions"><button id="previous" class="secondary">Back</button><button id="next" class="primary">Next step →</button></div>
@@ -44,7 +44,7 @@
     </section>
     <section id="library" class="tab" hidden>
       <h1>My materials</h1>
-      <div class="card import-card"><h2>Import once</h2><p>Choose the three book PDFs and your lesson recordings. Pages and audio match automatically. Files stay on this device.</p>
+      <div class="card import-card"><h2>Import once</h2><p>Choose your full book PDF and lesson recordings. The three PDF parts also work. Pages and audio match automatically. Files stay on this device.</p>
         <label class="primary file-button">Choose files<input id="file-input" type="file" accept="application/pdf,audio/*,.pdf,.mp3,.m4a,.wav,.aac,.ogg,.flac,.aiff,.aif" multiple></label>
         <p id="import-status" role="status" class="note">On iPhone, choose files from the Files app. You can import in batches.</p>
         <p id="course-import-status" class="note" role="status"></p>
@@ -57,13 +57,13 @@
     </section>
     <section id="setup" class="tab" hidden>
       <h1>Help & updates</h1>
-      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.0.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
+      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.1.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
       <article class="card"><h2>Start on your iPhone</h2><ol class="setup-list">
         <li>Open in Safari → Share → Add to Home Screen. Launch from that icon.</li>
         <li>In My materials, import <strong>001-300.pdf</strong>, <strong>301-600.pdf</strong>, <strong>601-614.pdf</strong>, and your <strong>L001-LESSON.mp3</strong> recordings. You can start with lessons 1–3.</li>
         <li>Choose your lesson and follow each step. Your place saves automatically.</li>
         <li>Wait for “App available offline”, then try reopening in Airplane Mode.</li>
-      </ol><p class="note">The prepared pages and sentence cuts apply to the supplied originals. Some sentence cuts are drafts; a short message identifies those during shadowing. Use the audio controls to pause manually if a cut needs adjusting.</p><p class="note">Safari tabs and Home Screen apps may have separate storage. Import inside the app you plan to use.</p></article>
+      </ol><p class="note">The prepared pages apply to the supplied book, as one PDF or three parts. Sentence cuts apply to the original recordings. Some sentence cuts are drafts; a short message identifies those during shadowing. Use the audio controls to pause manually if a cut needs adjusting.</p><p class="note">Safari tabs and Home Screen apps may have separate storage. Import inside the app you plan to use.</p></article>
       <button class="primary" data-go="study">Return to study</button>
     </section>
   </main>

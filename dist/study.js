@@ -1,6 +1,7 @@
 import {BookReader,validateCrop} from './pdf-reader.js';
 import {detectSegments,validateSegments,parseSegments,formatTime} from './audio-tools.js';
-import {matchedAudio,matchedSource,lessonPages,preparedSentences} from './course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences} from './course-data.js';
+import {verifyBookLayout} from './book-layout.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
 
@@ -21,7 +22,7 @@ export async function connectStudy(api){
   const audioLesson=()=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===api.getActiveAudioId()));
   const sentences=()=>{const id=api.getActiveAudioId(),prepared=preparedSentences(audioLesson());return course.segmentMode[id]==='custom'&&course.segments[id]?course.segments[id]:prepared.length?prepared:course.segments[id]||[];};
   const preparedPlan=recall=>lessonPages(api.getIndex(),api.getLibrary(),api.getProgress().lesson,recall);
-  const hasPreparedBook=()=>api.getLibrary().some(file=>matchedSource(api.getIndex(),file));
+  const hasPreparedBook=()=>api.getLibrary().some(file=>matchedSource(api.getIndex(),file)||matchedCombinedBook(api.getIndex(),file));
   const dialogue=id=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id))?.audio.dialogue||{start:0,end:player.duration};
   function saveCourse(){const snapshot=structuredClone(course);const attempt=courseQueue.then(()=>api.write('state','course',snapshot));courseQueue=attempt.catch(()=>{});return attempt.catch(error=>{api.notice('Could not save lesson setup. Check storage and export a backup.');throw error;});}
   function mapping(lesson){const settings=bookSettings();if(!settings)return null;if(settings.pages?.[lesson])return {...settings.pages[lesson],estimated:false};if(settings.pattern){const {baseLesson,basePage,span}=settings.pattern;const start=basePage+(lesson-baseLesson)*span;if(start<1)return null;const layout=settings.layout||{offset:Math.min(1,span-1),crop:fullCrop};return {start,end:start+span-1,englishPage:start+layout.offset,crop:layout.crop,estimated:true};}return null;}
@@ -129,18 +130,18 @@ export async function connectStudy(api){
   async function renderBook(){
     const recall=api.getProgress().step===7&&!recallRevealed;
     const plan=preparedPlan(recall);
-    // Exact file fingerprints enable the reviewed page/crop map. Custom books keep their saved setup.
+    // Exact split files or a verified full-book layout enable the reviewed page/crop map.
     if(plan&&hasPreparedBook()&&!course.preferCustom){
       currentMap=mapping(api.getProgress().lesson);fillSettings(currentMap);$('manual-book').open=false;$('book-title').textContent=recall?'English only':'Lesson pages';
       $('book-info').textContent=`Lesson ${api.getProgress().lesson} · pages matched automatically`;
       await reader.renderEntries(plan,api.getFile,{english:recall});return;
     }
     const meta=getBook();currentMap=mapping(api.getProgress().lesson);fillSettings(currentMap);
-    $('book-title').textContent=recall?'English only':'Lesson pages';$('book-info').textContent=meta?meta.name:'Import the three book PDFs in My materials.';
+    $('book-title').textContent=recall?'English only':'Lesson pages';$('book-info').textContent=meta?meta.name:'Import your full book PDF or the three parts in My materials.';
     if(!meta){reader.clear();$('reader-status').textContent='Add your book in Menu → My materials.';return;}
     const doc=await ensureBook();
     $('page-start').max=$('page-end').max=$('english-page').max=doc.numPages;
-    if(!currentMap||currentMap.end>doc.numPages){reader.clear();$('reader-status').textContent='This PDF does not match the prepared book. Import the supplied split PDFs, or use custom page settings below.';return;}
+    if(!currentMap||currentMap.end>doc.numPages){reader.clear();$('reader-status').textContent=meta.bookMappingError||'This PDF has no matched lesson pages. Import the supplied full book or three parts, or use custom page settings below.';return;}
     if(editingEnglish)return;
     if(recall&&(!currentMap.crop||(currentMap.crop.x===0&&currentMap.crop.y===0&&currentMap.crop.w===1&&currentMap.crop.h===1))){reader.clear();$('reader-status').textContent='Select an English-only area in custom page settings before recall.';return;}
     await reader.render(recall?[currentMap.englishPage]:range(currentMap),recall?{crop:currentMap.crop}:{});
@@ -165,5 +166,6 @@ export async function connectStudy(api){
   }
   function exportCourse(){return {rate:course.rate,preferCustom:!!course.preferCustom,books:api.getLibrary().filter(x=>x.kind==='pdf'&&course.books[x.id]).map(x=>({name:x.name,size:x.size,settings:course.books[x.id],active:x.id===getBook()?.id})),segments:api.getLibrary().filter(x=>x.kind==='audio'&&course.segments[x.id]).map(x=>({name:x.name,size:x.size,timings:course.segments[x.id],useCustom:course.segmentMode[x.id]==='custom'}))};}
   async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}course=next;await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;await update();}
-  return {update,exportCourse,restoreCourse,stopSession,flush:()=>courseQueue};
+  async function verifyBook(meta,profile,options){return verifyBookLayout(await reader.load(await api.getFile(meta),meta.id),profile,options);}
+  return {update,exportCourse,restoreCourse,stopSession,verifyBook,flush:()=>courseQueue};
 }

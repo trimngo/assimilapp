@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {matchedAudio,matchedSource,lessonPages,preparedSentences} from '../dist/course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences} from '../dist/course-data.js';
 const index=JSON.parse(readFileSync(new URL('../dist/course-index.json',import.meta.url)));
 const books=index.book.sources.map(source=>({id:source.id,kind:'pdf',name:source.filename,size:source.bytes,sha256:source.sha256}));
 
@@ -19,6 +19,20 @@ test('lesson 57 spans both PDFs and missing parts stay explicit',()=>{
   assert.equal(pages[4].file.id,'301-600.pdf');assert.equal(pages[4].page,1);
   const partial=lessonPages(index,[books[0]],57);
   assert.equal(partial[4].file,null);assert(partial.slice(0,4).every(page=>page.file));
+});
+test('verified full books use global page references for all lessons and recall crops',()=>{
+  const full={id:'full-book',kind:'pdf',verifiedBookLayout:index.book.combinedLayoutSignature};
+  assert(matchedCombinedBook(index,full));
+  assert(!matchedCombinedBook(index,{...full,verifiedBookLayout:'old-profile'}));
+  assert(!matchedCombinedBook(index,{id:'unverified',kind:'pdf',size:51619803}));
+  for(const lesson of index.lessons)for(const recall of [false,true]){
+    const split=lessonPages(index,books,lesson.number,recall);
+    const combined=lessonPages(index,[...books,full],lesson.number,recall);
+    assert(combined.every(page=>page.file.id===full.id&&page.page===page.globalPage));
+    assert.deepEqual(combined.map(page=>page.crop),split.map(page=>page.crop));
+  }
+  assert.deepEqual(lessonPages(index,[full],57).map(page=>page.page),[297,298,299,300,301,302]);
+  assert(lessonPages(index,[{...full,verifiedBookLayout:undefined}],1).every(page=>!page.file));
 });
 test('recall includes all translation crops, including review translations on following pages',()=>{
   for(const lesson of index.lessons){
