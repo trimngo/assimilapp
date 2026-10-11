@@ -1,0 +1,2 @@
+# Preserve bundled upstream files without enforcing our whitespace rules on them.
+dist/vendor/** whitespace=-blank-at-eol,-blank-at-eof

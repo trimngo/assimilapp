@@ -1,5 +1,26 @@
-const CACHE='german-study-shell-v1';
-const ASSETS=['./index.html','./style.css','./app.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
-self.addEventListener('install',event=>event.waitUntil((async()=>{const cache=await caches.open(CACHE);for(const path of ASSETS){const request=new Request(new URL(path,self.registration.scope),{cache:'reload'});const response=await fetch(request);if(!response.ok||response.redirected)throw new Error('Offline shell download failed');if(path==='./index.html'&&!(await response.clone().text()).includes('data-study-app="1"'))throw new Error('Expected study app, received sign-in page');await cache.put(request,response);}await self.skipWaiting();})()));
-self.addEventListener('activate',event=>event.waitUntil((async()=>{for(const key of await caches.keys())if(key.startsWith('german-study-shell-')&&key!==CACHE)await caches.delete(key);await self.clients.claim();})()));
-self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(url.origin!==self.location.origin||event.request.method!=='GET')return;const scope=new URL(self.registration.scope);const relative=url.pathname.slice(scope.pathname.length);if(event.request.mode==='navigate'&&(relative===''||relative==='index.html')){event.respondWith((async()=>{const cached=await caches.match(new URL('./index.html',scope));return cached||fetch(event.request);})());}else if(ASSETS.some(path=>new URL(path,scope).pathname===url.pathname)){event.respondWith((async()=>{const cache=await caches.open(CACHE);return await cache.match(event.request)||fetch(event.request);})());}});
+const CACHE='german-study-shell-v2';
+const ASSETS=["./index.html", "./style.css", "./app.js", "./study.js", "./audio-tools.js", "./pdf-reader.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./vendor/pdf.mjs", "./vendor/pdf.worker.mjs", "./vendor/standard_fonts/FoxitDingbats.pfb", "./vendor/standard_fonts/FoxitFixed.pfb", "./vendor/standard_fonts/FoxitFixedBold.pfb", "./vendor/standard_fonts/FoxitFixedBoldItalic.pfb", "./vendor/standard_fonts/FoxitFixedItalic.pfb", "./vendor/standard_fonts/FoxitSerif.pfb", "./vendor/standard_fonts/FoxitSerifBold.pfb", "./vendor/standard_fonts/FoxitSerifBoldItalic.pfb", "./vendor/standard_fonts/FoxitSerifItalic.pfb", "./vendor/standard_fonts/FoxitSymbol.pfb", "./vendor/standard_fonts/LiberationSans-Bold.ttf", "./vendor/standard_fonts/LiberationSans-BoldItalic.ttf", "./vendor/standard_fonts/LiberationSans-Italic.ttf", "./vendor/standard_fonts/LiberationSans-Regular.ttf"];
+self.addEventListener('install',event=>event.waitUntil((async()=>{
+  const requests=ASSETS.map(path=>new Request(new URL(path,self.registration.scope),{cache:'reload'}));
+  const shell=await fetch(requests[0]);
+  if(!shell.ok||shell.redirected||!(await shell.clone().text()).includes('data-study-app="1"'))throw new Error('Expected study app');
+  const cache=await caches.open(CACHE);
+  // addAll commits the shell together: a failed dependency must not advertise offline readiness.
+  await cache.addAll(requests);
+  await self.skipWaiting();
+})()));
+self.addEventListener('activate',event=>event.waitUntil((async()=>{
+  for(const key of await caches.keys())if(key.startsWith('german-study-shell-')&&key!==CACHE)await caches.delete(key);
+  await self.clients.claim();
+})()));
+self.addEventListener('fetch',event=>{
+  const url=new URL(event.request.url);
+  if(url.origin!==self.location.origin||event.request.method!=='GET')return;
+  const scope=new URL(self.registration.scope),relative=url.pathname.slice(scope.pathname.length);
+  if(event.request.mode==='navigate'&&(relative===''||relative==='index.html'))event.respondWith((async()=>{
+    const cache=await caches.open(CACHE);return await cache.match(new URL('./index.html',scope))||fetch(event.request);
+  })());
+  else if(ASSETS.some(path=>new URL(path,scope).pathname===url.pathname))event.respondWith((async()=>{
+    const cache=await caches.open(CACHE);return await cache.match(event.request)||fetch(event.request);
+  })());
+});

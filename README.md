@@ -1,25 +1,44 @@
-# German Study Companion — storage prototype
+# German Study Companion
 
-Buildless, browser-local PWA for an iPhone storage trial. No study files or progress are sent to a server. Import a PDF and audio, move through eight study instructions, and retain the current lesson and step. Filenames such as `L001-LESSON.mp3`, `L002-LESSON.mp3`, and `Lesson 3.mp3` automatically associate recordings with lessons. Changing the lesson loads its associated recording. Explicit manual choices are preserved; recordings without recognizable names can be associated manually. Files stream into OPFS where writable files are available, otherwise they are stored as IndexedDB blobs. IndexedDB records are written only after an OPFS file has been fully saved. Duplicate imports are skipped and storage failures are surfaced.
+An offline phone-friendly companion for your German Assimil course. Import your own scanned PDF and audio once; the files and your study progress stay on the device. No book, recordings, or progress are uploaded by the app.
 
-Serve `dist/` over HTTPS (localhost works for development). The service worker caches only the application shell. It does not cache imported files, authentication pages, or third-party requests. Installed app storage and Safari tab storage may differ: install first and import inside the installed app.
+## Study routine
 
-On iPhone: open in Safari, Share → Add to Home Screen, launch from the icon, import materials, wait for “App available offline”, save a lesson/step, close, enable Airplane Mode, and reopen. Verify playback and opening the stored PDF, then repeat after restarting. Browser storage is subject to iOS retention policies. Export progress and retain original materials.
+1. **Review:** play the previous two or three available lessons in order.
+2. **Blind listening:** play the current lesson twice, with the book hidden, and stop automatically.
+3. **Understand:** read the lesson’s German, English, and notes inside the app.
+4. **Read along:** play audio while following the scanned pages. A floating playback bar remains available while scrolling.
+5. **Shadowing:** detect pauses locally, pause and repeat individual segments, move to the next sentence, or continue automatically after a repeat gap. Then speak along with text and without text. Boundaries can be edited or split at the playhead.
+6. **Read aloud and exercises:** keep the relevant lesson pages visible.
+7. **Write:** view the lesson while copying sentences on paper.
+8. **Recall:** show only your selected English translation area; reveal and hide the full lesson to check your answer.
 
-This intentionally tests storage first: full PDF opened in a separate tab, automatic filename matching, manual pauses and seeking. Lesson page mapping, dual-page rendering, automatic sentence segmentation, English-only cropping, and automatic two-play listening are follow-up features. Audio format support and full PDF handling must be checked with actual materials on iOS.
+Filenames such as `L001-LESSON.mp3` match recordings to lessons automatically. Unrecognized names can be associated manually. Playback speed is adjustable. Current lesson and study step save automatically.
+
+## One-time book setup
+
+In Understand, open **Set lesson pages**. Enter the first, last, and English PDF page numbers; these may differ from printed book numbers. Preview the pages, then save. Optionally estimate subsequent lessons using the same page count, and save exceptions individually. No page offsets are guessed before you set a pattern.
+
+Choose **Select English area**, drag a rectangle around the English translation, and save it. You can reuse that layout for other lessons. Recall renders a separate cropped canvas, rather than covering the German with an overlay. The app does not assume that a scanned PDF has selectable text or run OCR.
+
+Shadowing proposes segments from pauses in the recording; they are not guaranteed linguistic sentence boundaries. Check them once and edit start/end times as needed, including removing introductions or combining phrases. Detection uses only the current recording, locally. Timings and page mappings are saved and included in progress backups.
+
+## iPhone and offline use
+
+Open the site in Safari, use Share → Add to Home Screen, and import inside the installed app. Safari and Home Screen storage may differ. Wait for **App available offline**, then close the app, enable Airplane Mode, and reopen. Verify saved progress, playback, and lesson pages. Retain original materials and export a backup; browser storage retention is subject to iOS policies.
+
+To update an existing installation, open online, allow the new app shell to download, then close and reopen or refresh. Updates keep the same IndexedDB database, file IDs, and OPFS files. Only app-shell caches are replaced. Restore a backup after importing its original materials so mappings can reconnect by filename and size. Version 1 progress backups remain supported.
 
 ## GitHub Pages
 
-For the current `work` branch, use Settings → Pages → Deploy from a branch → `work` → `/(root)`. The repository's root `index.html` forwards to the app in `dist/`, and `.nojekyll` disables README-based Jekyll rendering. The app URL is `https://trimngo.github.io/assimilapp/dist/`. Add that app page to your iPhone Home Screen after the redirect completes. Future pushes to `work` update this deployment without changing branches.
+For this repository, use Settings → Pages → Deploy from a branch → `work` → `/(root)`. The root entry page forwards to `dist/`; `.nojekyll` serves the static app directly. The stable app URL is `https://trimngo.github.io/assimilapp/dist/`. Future pushes to `work` update this deployment without changing branches.
 
-For the source repository layout, upload `dist/` and `.github/workflows/pages.yml` to the repository's `main` branch. In Settings → Pages, choose **GitHub Actions** as the source. The workflow deploys only `dist/` and can be triggered manually from Actions. No build or dependencies are needed. The app uses relative URLs to work at a project subpath such as `/assimilapp/`.
+An optional workflow deploys `dist/` from `main` when Pages is configured to use GitHub Actions. Keep the current branch-based setup if you want the installed app’s `/dist/` URL to remain stable. Moving to a different origin would require importing materials again; do not move the installed app URL unnecessarily.
 
-Alternatively, use the ready-to-host ZIP: put its extracted files directly at the repository root (so `index.html` is at the root), then choose Settings → Pages → Deploy from a branch → `main` → `/(root)`. No workflow is necessary for this option.
+## Implementation and checks
 
-Do not commit your PDF, audio, browser profiles, or exported progress. The hosted interface can be public while your imported files remain local to the browser. GitHub hosting itself receives ordinary page requests, but this app sends no study materials or progress. Opening the same app at a different origin will not bring its local files or progress along.
+Buildless HTML/JavaScript. Files stream into OPFS where writable files are supported, with an IndexedDB blob fallback. PDF.js 4.10.38 is bundled with its worker, standard fonts, and licenses for offline rendering. File slices are supplied through a local range transport so opening a large book does not copy the whole PDF into an application buffer. Pages are rendered at a bounded resolution. PDF code evaluation is disabled.
 
-When releasing changed application assets, increment `CACHE` in `dist/sw.js` and the matching cache name in `dist/app.js`. Application updates must not delete OPFS or IndexedDB data. Reopening online installs an updated service worker and refreshes only app assets.
+The service worker caches the complete app shell atomically, including PDF dependencies, and replaces only caches with the app’s own prefix. Increment its cache version and the corresponding name in `app.js` for a new asset release. Study materials are never part of the hosted source or service-worker cache.
 
-## Verification
-
-Verified in local Chromium at a phone-sized viewport: OPFS imports, IndexedDB fallback, duplicate detection, deletion, saved lesson and step, progress export/restore, full browser restart followed by offline reload, audio playback, and opening a stored sample PDF. Imported a generated 64.01 MiB PDF with the three supplied MP3s; confirmed file retention and boundary bytes after restart. Each supplied MP3 matched lessons 1–3 automatically and played offline. The original scanned PDF could not be transferred into this workspace because it exceeds the 32 MiB attachment-transfer limit. This limit does not apply to the PWA's file picker. The original PDF and Home Screen installation have not been tested on an iPhone.
+Run `npm test` for pause detection and timing validation checks; no installation or build is required. Browser checks covered review sequencing, two-pass listening, scanned PDF rendering, landscape spreads, page patterns, English cropping, reveal/hide, sentence pauses and replay, practice with/without text, backup/restore, offline restart, and preservation of legacy files/progress. The supplied first recording was also checked for pause detection. The original book exceeds the workspace attachment-transfer limit, so its exact page layout and actual iPhone rendering still need to be verified on the device.
