@@ -1,12 +1,72 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5f2e9"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="German Study"><meta name="description" content="Your German study routine, with your book and audio saved on this device."><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png"><link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css"><title>German Study Companion</title></head>
-<body data-study-app="1"><div class="shell"><header><a href="#study" class="brand"><span class="brand-icon">g.</span><span>German Study<small>YOUR DAILY COMPANION</small></span></a><span class="badge" id="app-version">v2.1.0</span></header>
-<nav aria-label="Main navigation"><button data-tab="study" class="active">Study</button><button data-tab="library">My materials</button><button data-tab="setup">Get started</button></nav>
-<main><section id="study" class="tab"><div class="intro"><p class="eyebrow">ONE LESSON AT A TIME</p><h1>A little German,<br>every day.</h1><p>Your book. Your audio. A simple routine to follow.</p></div>
-<div class="study-grid"><article class="card session"><div class="row"><p class="eyebrow">YOUR PLACE IN THE BOOK</p><span id="save-status" role="status">Loading…</span></div><div class="lesson-row"><button id="lesson-back" class="round" aria-label="Previous lesson">−</button><label>Lesson <input id="lesson" type="number" min="1" max="9999" value="1" aria-label="Current lesson"></label><button id="lesson-next" class="round" aria-label="Next lesson">+</button></div><div id="step-dots" class="step-dots" aria-label="Study steps"></div><p id="step-count" class="eyebrow"></p><h2 id="step-title"></h2><p id="step-instruction" class="instruction"></p><p id="step-note" class="note"></p><div class="step-actions"><button id="previous" class="secondary">← Back</button><button id="next" class="primary">Next step →</button></div></article>
-<aside class="card audio-card"><div class="section-icon">♫</div><p class="eyebrow">LISTEN & REPEAT</p><h2>Your lesson audio</h2><p class="muted">Recordings match your lesson automatically from their filenames.</p><label class="field">Lesson recording<select id="audio-select"><option value="">Import audio to begin</option></select></label><audio id="player" controls preload="metadata"></audio><label class="check"><input id="repeat" type="checkbox"> Repeat this track</label><p id="audio-info" class="note">No audio selected.</p><button class="text-button" data-go="library">Add your materials →</button></aside></div>
-<article id="book-card" class="card book-card"><div><p class="eyebrow">YOUR BOOK</p><h2 id="book-title">A place for your pages</h2><p id="book-info" class="muted">Import your scanned PDF to open it offline.</p></div><button id="open-book" class="secondary" disabled>Open stored PDF ↗</button></article>
-<div class="quiet-footer"><span id="offline-status">Checking offline setup…</span><span>Progress stays on this device.</span></div></section>
-<section id="library" class="tab" hidden><div class="intro"><p class="eyebrow">BRING YOUR OWN MATERIALS</p><h1>One import.<br>Ready for next time.</h1><p>Store your book and recordings on this device. Your files are never uploaded.</p></div><div class="card import-card"><div><h2>Add your book & audio</h2><p class="muted">Choose one PDF and any number of audio files. Large files are saved one at a time.</p></div><label class="primary file-button">Choose files<input id="file-input" type="file" accept="application/pdf,audio/*,.pdf,.mp3,.m4a,.wav,.aac,.ogg,.flac,.aiff,.aif" multiple></label><p id="import-status" role="status" class="note">On iPhone, select files from the Files app.</p></div><div class="card"><div class="row"><h2>On this device</h2><span id="file-total" class="muted">0 files</span></div><ul id="file-list" class="file-list"></ul><p id="empty-library" class="muted">Your library is empty. Import a few recordings and your PDF to try it out.</p></div><div class="card"><h2>Storage & backup</h2><p id="storage-info" class="muted">Checking storage…</p><button id="persist" class="secondary">Request storage protection</button><p id="persist-info" class="note">Keep your original files. iOS may clear browser storage; protection is not guaranteed.</p><hr><p class="muted">Save your lesson, study step, page mappings, English areas, and sentence timings. The PDF and audio are not included.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div></div></section>
-<section id="setup" class="tab" hidden><article class="card update-card"><h2>App updates</h2><p id="running-version" class="muted">Running version 2.1.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Reloading updates the app without clearing your book, audio, or progress.</p></article><div class="intro"><p class="eyebrow">START SMALL</p><h1>Make room<br>for a daily habit.</h1><p>Set up your materials once, then follow the eight study steps.</p></div><article class="card"><ol class="setup-list"><li><h2>Add to your Home Screen</h2><p>Open this site in Safari, use Share → Add to Home Screen, then launch it from its new icon. Import your files there, since storage may differ from the Safari tab.</p></li><li><h2>Import your materials</h2><p>In My materials, choose your scanned PDF and a few recordings. Wait until every file shows “Stored”. Filenames such as L001-LESSON.mp3 or Lesson 1.mp3 automatically connect recordings to lessons. Start with a small sample before importing your whole collection.</p></li><li><h2>Set your place</h2><p>Choose your lesson and move to a study step. Its matched recording loads automatically. Look for “Saved on device”. If a filename cannot be matched, you can choose its recording manually.</p></li><li><h2>Try it offline</h2><p>Wait for “App available offline”, close the app, enable Airplane Mode, and reopen it. Check your saved lesson, play audio, and open the book. Repeat after restarting your iPhone.</p></li></ol><div class="callout"><strong>Finish your lesson setup</strong><p>In Understand, set your lesson’s PDF pages and optionally apply a page pattern. Select the English translation area for Recall. Shadowing detects pauses on this device; adjust the timings if a sentence needs joining or splitting.</p></div></article></section>
-</main><footer>German Study Companion <span>A personal companion for your Assimil course.</span></footer></div><div id="notice" role="alert" hidden></div><script type="module" src="app.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f2e9"><meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="German Study">
+  <meta name="description" content="Your German study routine, with your book and audio saved on this device.">
+  <link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" href="icon.svg" type="image/svg+xml"><link rel="stylesheet" href="style.css">
+  <title>German Study</title>
+</head>
+<body data-study-app="1">
+<div class="shell">
+  <header>
+    <a href="#study" class="brand">German Study</a>
+    <details id="app-menu"><summary>Menu</summary><nav aria-label="Main navigation">
+      <button data-tab="study">Study</button><button data-tab="library">My materials</button><button data-tab="setup">Help & updates</button>
+      <span class="badge" id="app-version">v3.0.0</span>
+    </nav></details>
+  </header>
+  <main>
+    <section id="study" class="tab">
+      <div class="lesson-row"><button id="lesson-back" class="round" aria-label="Previous lesson">−</button><label>Lesson <input id="lesson" type="number" min="1" max="9999" value="1" aria-label="Current lesson"></label><button id="lesson-next" class="round" aria-label="Next lesson">+</button></div>
+      <article class="session">
+        <div class="row"><p id="step-count" class="eyebrow"></p><span id="save-status" role="status">Loading…</span></div>
+        <div id="step-dots" class="step-dots" aria-label="Study steps"></div>
+        <h1 id="step-title"></h1><p id="step-instruction" class="instruction"></p><p id="step-note" class="note"></p>
+      </article>
+      <div id="materials-prompt" class="callout" hidden><p id="materials-prompt-text"></p><button class="primary" data-go="library">Add materials</button></div>
+      <article class="audio-card">
+        <audio id="player" controls preload="metadata"></audio>
+        <p id="audio-info" class="note">No audio selected.</p>
+        <details id="audio-options"><summary>Playback options</summary>
+          <label class="field">Lesson recording<select id="audio-select"><option value="">Import audio to begin</option></select></label>
+          <label class="check"><input id="repeat" type="checkbox"> Repeat recording</label>
+        </details>
+      </article>
+      <article id="book-card" class="book-card">
+        <h2 id="book-title">Lesson pages</h2><p id="book-info" class="note">Import the three book PDFs once.</p>
+        <button id="open-book" class="text-button" disabled hidden>Open stored PDF ↗</button>
+      </article>
+      <div class="step-actions"><button id="previous" class="secondary">Back</button><button id="next" class="primary">Next step →</button></div>
+      <p id="offline-status" class="quiet-footer">Checking offline setup…</p>
+    </section>
+    <section id="library" class="tab" hidden>
+      <h1>My materials</h1>
+      <div class="card import-card"><h2>Import once</h2><p>Choose the three book PDFs and your lesson recordings. Pages and audio match automatically. Files stay on this device.</p>
+        <label class="primary file-button">Choose files<input id="file-input" type="file" accept="application/pdf,audio/*,.pdf,.mp3,.m4a,.wav,.aac,.ogg,.flac,.aiff,.aif" multiple></label>
+        <p id="import-status" role="status" class="note">On iPhone, choose files from the Files app. You can import in batches.</p>
+        <p id="course-import-status" class="note" role="status"></p>
+      </div>
+      <details class="card"><summary>Stored files · <span id="file-total">0 files</span></summary><ul id="file-list" class="file-list"></ul><p id="empty-library" class="muted">No materials imported yet.</p></details>
+      <details class="card"><summary>Backup & storage</summary><p class="muted">Back up your progress and any custom page or sentence settings. Your book and recordings are kept separately.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div>
+        <hr><p id="storage-info" class="note">Checking storage…</p><button id="persist" class="secondary">Request storage protection</button><p id="persist-info" class="note">Keep your originals. iOS may clear browser storage; protection is not guaranteed.</p>
+      </details>
+      <button class="primary" data-go="study">Return to study</button>
+    </section>
+    <section id="setup" class="tab" hidden>
+      <h1>Help & updates</h1>
+      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.0.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
+      <article class="card"><h2>Start on your iPhone</h2><ol class="setup-list">
+        <li>Open in Safari → Share → Add to Home Screen. Launch from that icon.</li>
+        <li>In My materials, import <strong>001-300.pdf</strong>, <strong>301-600.pdf</strong>, <strong>601-614.pdf</strong>, and your <strong>L001-LESSON.mp3</strong> recordings. You can start with lessons 1–3.</li>
+        <li>Choose your lesson and follow each step. Your place saves automatically.</li>
+        <li>Wait for “App available offline”, then try reopening in Airplane Mode.</li>
+      </ol><p class="note">The prepared pages and sentence cuts apply to the supplied originals. Some sentence cuts are drafts; a short message identifies those during shadowing. Use the audio controls to pause manually if a cut needs adjusting.</p><p class="note">Safari tabs and Home Screen apps may have separate storage. Import inside the app you plan to use.</p></article>
+      <button class="primary" data-go="study">Return to study</button>
+    </section>
+  </main>
+</div>
+<div id="notice" role="alert" hidden></div><script type="module" src="app.js"></script>
+</body></html>

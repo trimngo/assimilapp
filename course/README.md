@@ -57,4 +57,4 @@ python scripts/preprocess_audio.py /path/to/audio-folder --force \
 
 The model runs locally during preparation. It is not part of the PWA. Private OCR text, model files, recordings, and analysis scratch files belong under ignored `work/` or outside this repository. `--report` selects a local processing report; `--output` writes a separate index and merges later batches into it.
 
-Optional `preprocess_book.py --export-pages work/pages` exports WebP pages for a future private import pack. Preparing metadata alone does not install a new PWA release; application integration is a separate change.
+Optional `preprocess_book.py --export-pages work/pages` exports WebP pages for a future private import pack. The PWA now loads a copy of this index from `dist/course-index.json`, cached with its app shell. After changing prepared data, copy the reviewed index there and publish a versioned app release.
