@@ -1,5 +1,6 @@
-const CACHE='german-study-shell-v2';
-const ASSETS=["./index.html", "./style.css", "./app.js", "./study.js", "./audio-tools.js", "./pdf-reader.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./vendor/pdf.mjs", "./vendor/pdf.worker.mjs", "./vendor/standard_fonts/FoxitDingbats.pfb", "./vendor/standard_fonts/FoxitFixed.pfb", "./vendor/standard_fonts/FoxitFixedBold.pfb", "./vendor/standard_fonts/FoxitFixedBoldItalic.pfb", "./vendor/standard_fonts/FoxitFixedItalic.pfb", "./vendor/standard_fonts/FoxitSerif.pfb", "./vendor/standard_fonts/FoxitSerifBold.pfb", "./vendor/standard_fonts/FoxitSerifBoldItalic.pfb", "./vendor/standard_fonts/FoxitSerifItalic.pfb", "./vendor/standard_fonts/FoxitSymbol.pfb", "./vendor/standard_fonts/LiberationSans-Bold.ttf", "./vendor/standard_fonts/LiberationSans-BoldItalic.ttf", "./vendor/standard_fonts/LiberationSans-Italic.ttf", "./vendor/standard_fonts/LiberationSans-Regular.ttf"];
+const APP_VERSION='2.1.0';
+const CACHE='german-study-shell-v3';
+const ASSETS=["./index.html", "./style.css", "./app.js", "./study.js", "./updates.js", "./audio-tools.js", "./pdf-reader.js", "./manifest.webmanifest", "./icon.svg", "./icon-192.png", "./icon-512.png", "./vendor/pdf.mjs", "./vendor/pdf.worker.mjs", "./vendor/standard_fonts/FoxitDingbats.pfb", "./vendor/standard_fonts/FoxitFixed.pfb", "./vendor/standard_fonts/FoxitFixedBold.pfb", "./vendor/standard_fonts/FoxitFixedBoldItalic.pfb", "./vendor/standard_fonts/FoxitFixedItalic.pfb", "./vendor/standard_fonts/FoxitSerif.pfb", "./vendor/standard_fonts/FoxitSerifBold.pfb", "./vendor/standard_fonts/FoxitSerifBoldItalic.pfb", "./vendor/standard_fonts/FoxitSerifItalic.pfb", "./vendor/standard_fonts/FoxitSymbol.pfb", "./vendor/standard_fonts/LiberationSans-Bold.ttf", "./vendor/standard_fonts/LiberationSans-BoldItalic.ttf", "./vendor/standard_fonts/LiberationSans-Italic.ttf", "./vendor/standard_fonts/LiberationSans-Regular.ttf"];
 self.addEventListener('install',event=>event.waitUntil((async()=>{
   const requests=ASSETS.map(path=>new Request(new URL(path,self.registration.scope),{cache:'reload'}));
   const shell=await fetch(requests[0]);
@@ -23,4 +24,10 @@ self.addEventListener('fetch',event=>{
   else if(ASSETS.some(path=>new URL(path,scope).pathname===url.pathname))event.respondWith((async()=>{
     const cache=await caches.open(CACHE);return await cache.match(event.request)||fetch(event.request);
   })());
+});
+
+// version.json intentionally stays network-only so an old app can discover a new release.
+self.addEventListener('message',event=>{
+  if(event.data?.type!=='APP_INFO'||!event.ports[0])return;
+  event.waitUntil((async()=>{const cache=await caches.open(CACHE);const offlineReady=!!(await cache.match(new URL('./index.html',self.registration.scope)));event.ports[0].postMessage({version:APP_VERSION,offlineReady});})());
 });
