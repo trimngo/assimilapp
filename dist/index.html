@@ -17,14 +17,14 @@
       <button id="return-study" class="text-button" data-go="study" hidden>← Study</button>
       <button id="step-timer" class="timer-button" disabled aria-label="Study step countdown"><span id="timer-time" role="timer" aria-live="off">05:00</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path id="timer-icon" d="M4 2v8M8 2v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <details id="app-menu"><summary aria-label="Menu"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></summary><nav aria-label="Main navigation">
-      <button data-tab="study">Study</button><button data-tab="library">My materials</button><button data-tab="settings">Settings</button><button data-tab="setup">Help & updates</button>
-      <span class="badge" id="app-version">v3.4.0</span>
+      <button data-tab="study">Study</button><button data-tab="progress">Progress</button><button data-tab="library">My materials</button><button data-tab="settings">Settings</button><button data-tab="setup">Help & updates</button>
+      <span class="badge" id="app-version">v3.5.0</span>
     </nav></details>
     </div>
   </header>
   <main>
     <section id="study" class="tab">
-      <h1 id="lesson-title" class="lesson-title"></h1>
+      <div class="lesson-heading"><h1 id="lesson-title" class="lesson-title"></h1><span id="lesson-completed" class="completed-tag" hidden>✓ Completed</span></div>
       <article class="session">
         <div class="row"><p id="step-count" class="eyebrow"></p><span id="save-status" role="status">Loading…</span></div>
         <div id="step-dots" class="step-dots" aria-label="Study steps"></div>
@@ -46,6 +46,19 @@
       <nav id="step-navigation" class="step-actions" aria-label="Study step navigation"><button id="previous" class="secondary">Back</button><button id="next" class="primary">Next step →</button></nav>
       <p id="offline-status" class="quiet-footer">Checking offline setup…</p>
     </section>
+    <section id="progress" class="tab" hidden>
+      <div class="progress-heading"><h1>Progress</h1><button id="resume-lesson" class="primary" data-go="study">Resume lesson</button></div>
+      <article class="card progress-summary"><div><h2 id="completed-total">0 of 100</h2><p class="note">Lessons completed</p><progress id="completion-meter" value="0" max="100" aria-label="Lessons completed"></progress></div><div><h2 id="completion-week">0</h2><p class="note">This week · Mon–Sun</p></div></article>
+      <article class="card calendar-card"><div class="calendar-toolbar"><button id="calendar-previous" class="secondary" aria-label="Previous month">←</button><h2 id="calendar-month"></h2><button id="calendar-next" class="secondary" aria-label="Next month">→</button></div>
+        <div class="calendar-weekdays" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div><div id="calendar-days" class="calendar-days" role="group" aria-label="Lesson completions by day"></div>
+        <div class="calendar-legend"><p class="note">Numbers show lessons completed that day.</p><button id="calendar-today" class="text-button">Today</button></div>
+        <div class="completion-day"><h3 id="completion-date"></h3><p id="completion-empty" class="note">No lessons recorded for this day.</p><ul id="completion-day-list"></ul></div>
+      </article>
+      <details id="manage-completions" class="card"><summary>Manage completed lessons</summary><p class="note">Mark earlier lessons without adding calendar dates. Unmarking a lesson removes its recorded activity.</p>
+        <form id="mark-earlier-form" class="mark-earlier"><label class="field">Completed through lesson<input id="earlier-through" type="number" min="1" max="100" value="1" required disabled></label><button id="mark-earlier" class="secondary" type="submit" disabled>Mark completed</button></form>
+        <p id="completion-manage-status" class="note" role="status"></p><div id="completion-lesson-list" class="completion-lesson-list"></div>
+      </details>
+    </section>
     <section id="library" class="tab" hidden>
       <h1>My materials</h1>
       <div class="card import-card"><h2>Import once</h2><p>Choose your full book PDF and lesson recordings. The three PDF parts also work. Pages and audio match automatically. Files stay on this device.</p>
@@ -54,7 +67,7 @@
         <p id="course-import-status" class="note" role="status"></p>
       </div>
       <details class="card"><summary>Stored files · <span id="file-total">0 files</span></summary><ul id="file-list" class="file-list"></ul><p id="empty-library" class="muted">No materials imported yet.</p></details>
-      <details class="card"><summary>Backup & storage</summary><p class="muted">Back up your progress, timer lengths, and custom page or sentence settings. Your book and recordings are kept separately.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div>
+      <details class="card"><summary>Backup & storage</summary><p class="muted">Back up your study position, completion history, timer lengths, and custom page or sentence settings. Your book and recordings are kept separately.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div>
         <hr><p id="storage-info" class="note">Checking storage…</p><button id="persist" class="secondary">Request storage protection</button><p id="persist-info" class="note">Keep your originals. iOS may clear browser storage; protection is not guaranteed.</p>
       </details>
       <button class="primary" data-go="study">Return to study</button>
@@ -68,7 +81,7 @@
     </section>
     <section id="setup" class="tab" hidden>
       <h1>Help & updates</h1>
-      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.4.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
+      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.5.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
       <article class="card"><h2>Start on your iPhone</h2><ol class="setup-list">
         <li>Open in Safari → Share → Add to Home Screen. Launch from that icon.</li>
         <li>In My materials, import your <strong>full book PDF</strong> (or the three PDF parts) and your <strong>L001-LESSON.mp3</strong> recordings. You can start with lessons 1–3.</li>

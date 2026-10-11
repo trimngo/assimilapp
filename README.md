@@ -23,6 +23,12 @@ The countdown shares the existing toolbar row. Suggested step lengths are **5, 3
 
 Lesson and study step save automatically. Wait for **App available offline**, then try closing and reopening in Airplane Mode. Imported materials are read from local storage each session, without uploading or importing them again.
 
+## See your progress
+
+**Menu → Progress** shows a month calendar, overall completed lessons, and this week's lesson count (Monday–Sunday). Press **Finish lesson** after Recall to record completion on your device's local date and move to the next lesson. Each lesson counts once per day, so repeating one on another day adds activity while the overall total counts it once. Tap a calendar day to see the lesson titles; browse months or return to Today. **Resume lesson** returns to your saved lesson and step. Finished lessons display a **✓ Completed** tag. Finishing lesson 100 opens Progress and keeps the final lesson available to revisit.
+
+History starts when this feature is installed. **Manage completed lessons** lets you mark earlier lessons individually or through a chosen lesson number, without inventing calendar dates. Unmarking a lesson removes its completion tag and recorded calendar activity. These records work offline and travel with your progress backup; older backups preserve your existing completion history.
+
 ## Prepared course and custom materials
 
 The [course index and preprocessing guide](course/README.md) cover all 100 lessons, 208 reviewed English recall crops, recording fingerprints, dialogue ranges, and 1,296 sentence timing drafts. The app uses those small metadata files to seek within original MP3s; it does not run speech recognition or decode known recordings to detect pauses.
@@ -37,7 +43,7 @@ For other books, **Book options** retains custom page numbers, optional page pat
 
 In **Menu → Help & updates**, check the running version and choose **Check for updates** while online, then **Reload app** when a release is ready. Updates preserve IndexedDB and OPFS materials and progress, replacing only the app's shell cache. Offline checks show the running version without claiming it is the latest.
 
-In **Menu → My materials → Backup & storage**, export or restore progress, timer durations, custom book settings, audio choices, and timing edits. Backups exclude media files. Import the original files before restoring so settings reconnect by filename and size. Version 1 and 2 progress backups remain supported; older backups keep your current timer settings.
+In **Menu → My materials → Backup & storage**, export or restore progress, completion history, timer durations, custom book settings, audio choices, and timing edits. Backups exclude media files. Import the original files before restoring so settings reconnect by filename and size. Version 1 and 2 progress backups remain supported; older backups keep your current timer settings and completion history.
 
 ## GitHub Pages
 
