@@ -13,11 +13,12 @@
 <div class="shell">
   <header class="top-bar">
     <div class="toolbar-row">
-      <div id="lesson-controls" class="lesson-row"><button id="lesson-back" class="round" aria-label="Previous lesson">−</button><label>Lesson <input id="lesson" type="number" min="1" max="9999" value="1" aria-label="Current lesson"></label><button id="lesson-next" class="round" aria-label="Next lesson">+</button></div>
+      <div id="lesson-controls" class="lesson-row"><button id="lesson-back" class="round" aria-label="Previous lesson">−</button><label><span class="lesson-label">Lesson </span><input id="lesson" type="number" min="1" max="9999" value="1" aria-label="Current lesson"></label><button id="lesson-next" class="round" aria-label="Next lesson">+</button></div>
       <button id="return-study" class="text-button" data-go="study" hidden>← Study</button>
+      <button id="step-timer" class="timer-button" disabled aria-label="Study step countdown"><span id="timer-time" role="timer" aria-live="off">05:00</span><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path id="timer-icon" d="M4 2v8M8 2v8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <details id="app-menu"><summary aria-label="Menu"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></summary><nav aria-label="Main navigation">
-      <button data-tab="study">Study</button><button data-tab="library">My materials</button><button data-tab="setup">Help & updates</button>
-      <span class="badge" id="app-version">v3.3.0</span>
+      <button data-tab="study">Study</button><button data-tab="library">My materials</button><button data-tab="settings">Settings</button><button data-tab="setup">Help & updates</button>
+      <span class="badge" id="app-version">v3.4.0</span>
     </nav></details>
     </div>
   </header>
@@ -53,14 +54,21 @@
         <p id="course-import-status" class="note" role="status"></p>
       </div>
       <details class="card"><summary>Stored files · <span id="file-total">0 files</span></summary><ul id="file-list" class="file-list"></ul><p id="empty-library" class="muted">No materials imported yet.</p></details>
-      <details class="card"><summary>Backup & storage</summary><p class="muted">Back up your progress and any custom page or sentence settings. Your book and recordings are kept separately.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div>
+      <details class="card"><summary>Backup & storage</summary><p class="muted">Back up your progress, timer lengths, and custom page or sentence settings. Your book and recordings are kept separately.</p><div class="backup-actions"><button id="export" class="secondary">Export progress</button><label class="secondary file-button">Restore progress<input id="restore" type="file" accept="application/json,.json"></label></div>
         <hr><p id="storage-info" class="note">Checking storage…</p><button id="persist" class="secondary">Request storage protection</button><p id="persist-info" class="note">Keep your originals. iOS may clear browser storage; protection is not guaranteed.</p>
       </details>
       <button class="primary" data-go="study">Return to study</button>
     </section>
+    <section id="settings" class="tab" hidden>
+      <h1>Settings</h1>
+      <article class="card"><h2>Study timer</h2><p class="note">Each study step starts its countdown. Tap the countdown to pause or resume. The timer pauses while you visit the menu pages; you can keep studying after time is up.</p>
+        <form id="timer-settings-form"><div id="timer-durations"></div><div class="backup-actions"><button class="primary" type="submit" disabled>Save timer lengths</button><button id="timer-reset" class="secondary" type="button" disabled>Reset current timer</button></div><button id="timer-defaults" class="text-button" type="button" disabled>Restore suggested times</button><p id="timer-settings-status" class="note" role="status"></p></form>
+      </article>
+      <button class="primary" data-go="study">Return to study</button>
+    </section>
     <section id="setup" class="tab" hidden>
       <h1>Help & updates</h1>
-      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.3.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
+      <article class="card"><h2>App updates</h2><p id="running-version" class="muted">Running version 3.4.0</p><div class="backup-actions"><button id="check-updates" class="secondary">Check for updates</button><button id="reload-app" class="primary" hidden>Reload app</button></div><p id="update-status" class="note" role="status">Open online to check the latest published version.</p><p class="note">Updates keep your imported materials and progress.</p></article>
       <article class="card"><h2>Start on your iPhone</h2><ol class="setup-list">
         <li>Open in Safari → Share → Add to Home Screen. Launch from that icon.</li>
         <li>In My materials, import your <strong>full book PDF</strong> (or the three PDF parts) and your <strong>L001-LESSON.mp3</strong> recordings. You can start with lessons 1–3.</li>

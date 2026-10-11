@@ -10,6 +10,8 @@ In **Menu → My materials**, select your full `ASSIMIl German book.pdf` and les
 
 Choose a lesson and follow the eight steps. The lesson number and title appear above the current instruction. The compact top toolbar holds lesson selection and the menu; Back and Next appear below the lesson content. Only the current instruction and relevant controls appear; materials, backup, and updates live in the menu.
 
+The countdown shares the existing toolbar row. Suggested step lengths are **5, 3, 7, 5, 10, 8, 5, and 2 minutes** (45 minutes total). Each step starts its timer; tap the countdown to pause or resume, or tap again after time is up to restart. The timer pauses on menu pages. It keeps accurate elapsed time while the phone sleeps and across reloads, works offline, and lets playback and studying continue when time is up. Change the eight durations in **Menu → Settings → Study timer**, where you can also reset the current timer or restore the suggestions. Saved durations are included in progress backups.
+
 1. **Review:** play the previous two or three available lesson dialogues in order.
 2. **Blind listening:** play the current dialogue twice with the book hidden, then stop. Lesson playback starts with the spoken lesson number and title. Each listen includes the fast reading and slower repeat where the recording contains both, ending before exercises. Other study steps retain the first dialogue ending.
 3. **Understand:** read the German, English translation, notes, and exercises on the mapped pages.
@@ -35,7 +37,7 @@ For other books, **Book options** retains custom page numbers, optional page pat
 
 In **Menu → Help & updates**, check the running version and choose **Check for updates** while online, then **Reload app** when a release is ready. Updates preserve IndexedDB and OPFS materials and progress, replacing only the app's shell cache. Offline checks show the running version without claiming it is the latest.
 
-In **Menu → My materials → Backup & storage**, export or restore progress, custom book settings, audio choices, and timing edits. Backups exclude media files. Import the original files before restoring so settings reconnect by filename and size. Version 1 and 2 progress backups remain supported.
+In **Menu → My materials → Backup & storage**, export or restore progress, timer durations, custom book settings, audio choices, and timing edits. Backups exclude media files. Import the original files before restoring so settings reconnect by filename and size. Version 1 and 2 progress backups remain supported; older backups keep your current timer settings.
 
 ## GitHub Pages
 
