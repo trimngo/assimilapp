@@ -10,6 +10,15 @@ export async function connectStudy(api){
   course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.rate=Number(course.rate)||1;
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='',shadowMode='sentence';
   const player=$('player');
+  let appSeek=null,boundedPlay=false;
+  function seekTo(time){
+    if(Math.abs(player.currentTime-time)<.001)return;
+    appSeek=time;player.currentTime=time;
+  }
+  function freePlayback(){
+    clearTimeout(boundaryTimer);clearTimeout(gapTimer);session={kind:'continuation'};
+    player.loop=false;$('repeat').checked=false;$('play-status').textContent='';
+  }
   $('audio-select').insertAdjacentHTML('afterend',`<label class="field speed-field">Playback speed<select id="speed"><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>`);
   $('audio-options').insertAdjacentHTML('beforeend',`<details id="sentence-timing-options" hidden>
     <summary>Adjust this sentence</summary><p id="timing-sentence" class="note"></p>
@@ -38,8 +47,8 @@ export async function connectStudy(api){
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
   function refreshSentences(){const spans=sentences();segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];$('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';$('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;$('sentence-list').replaceChildren(...spans.map((span,i)=>{const button=document.createElement('button');button.textContent=String(i+1);button.className=i===segmentIndex?'selected':'';button.setAttribute('aria-label',`Sentence ${i+1}, ${formatTime(span.start)} to ${formatTime(span.end)}`);button.addEventListener('click',()=>{stopSession();segmentIndex=i;refreshSentences();});return button;}));$('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');refreshTimingEditor();}
   function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||$('player').getBoundingClientRect().bottom>0;$('mini-title').textContent=file?.name||'';$('mini-time').textContent=`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`;$('mini-play').textContent=player.paused?'Play':'Pause';$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');}
-  async function play(){try{await player.play();$('play-status').textContent='';}catch(error){if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';else if(error.name!=='AbortError')api.notice('This recording could not play. Try the Play control again.');}}
-  async function startSentence(){const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;player.currentTime=span.start;await play();scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
+  async function play(bounded=false){boundedPlay=bounded;try{await player.play();$('play-status').textContent='';}catch(error){if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';else if(error.name!=='AbortError')api.notice('This recording could not play. Try the Play control again.');}finally{boundedPlay=false;}}
+  async function startSentence(){const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
   function refreshTimingEditor(force=false){
     const span=sentences()[segmentIndex];
     $('sentence-timing-options').hidden=!span||api.getProgress().step!==4||shadowMode!=='sentence';
@@ -70,7 +79,7 @@ export async function connectStudy(api){
     try{
       stopSession();const id=api.getActiveAudioId(),index=segmentIndex;await readyPlayer();if(id!==api.getActiveAudioId()||index!==segmentIndex)return;
       const span=editedSentences()[segmentIndex];session={kind:'preview',span};player.loop=false;$('repeat').checked=false;
-      player.currentTime=span.start;$('timing-edit-status').textContent='Playing preview…';await play();scheduleBoundary();
+      seekTo(span.start);$('timing-edit-status').textContent='Playing preview…';await play(true);scheduleBoundary();
     }catch(error){$('timing-edit-status').textContent=error.message;api.notice(error.message);}
   });
   $('save-sentence').addEventListener('click',async()=>{
@@ -81,16 +90,16 @@ export async function connectStudy(api){
     }catch(error){$('timing-edit-status').textContent=error.message;api.notice(error.message);}
   });
   function scheduleBoundary(){
-    clearTimeout(boundaryTimer);if(!session||player.paused||session.finishing)return;
+    clearTimeout(boundaryTimer);if(!session||player.paused||player.seeking||appSeek!==null||session.finishing)return;
     const span=session.kind==='sentence'?sentences()[segmentIndex]:session.span;
     if(!span||!Number.isFinite(span.end))return;
     const delay=(span.end-player.currentTime)/player.playbackRate*1000;
     if(delay<=0){finishRange().catch(error=>api.notice(error.message));return;}
-    boundaryTimer=setTimeout(()=>{if(player.currentTime>=span.end-.03)finishRange().catch(error=>api.notice(error.message));else scheduleBoundary();},delay);
+    boundaryTimer=setTimeout(()=>{if(!player.seeking&&appSeek===null&&player.currentTime>=span.end-.03)finishRange().catch(error=>api.notice(error.message));else scheduleBoundary();},delay);
   }
   function finishSentence(){
     if(session?.kind!=='sentence'||session.finishing)return;session.finishing=true;clearTimeout(boundaryTimer);player.pause();
-    const span=sentences()[segmentIndex];if(span)player.currentTime=span.end;
+    const span=sentences()[segmentIndex];if(span)seekTo(span.end);
     $('play-status').textContent=`Your turn: repeat sentence ${segmentIndex+1}. Play continues; Repeat sentence replays it.`;
     if($('sentence-auto').checked&&segmentIndex<sentences().length-1){
       const seconds=$('sentence-gap').value==='match'?Math.max(1,span.end-span.start):Number($('sentence-gap').value);
@@ -108,15 +117,15 @@ export async function connectStudy(api){
   }
   async function beginRange(active,id){
     if(api.getActiveAudioId()!==id)await api.loadAudio(id);await readyPlayer();if(session!==active)return;
-    active.span=dialogue(id,active.kind==='blind');active.finishing=false;player.currentTime=active.span.start;
-    await play();scheduleBoundary();
+    active.span=dialogue(id,active.kind==='blind');active.finishing=false;seekTo(active.span.start);
+    await play(true);scheduleBoundary();
   }
   async function finishRange(){
     const active=session;if(!active||active.finishing)return;
     if(active.kind==='sentence'){finishSentence();return;}
     active.finishing=true;clearTimeout(boundaryTimer);player.pause();
     if(active.kind==='preview'){
-      session=null;player.currentTime=active.span.end;$('timing-edit-status').textContent='Preview complete. Save sentence to keep these timings.';
+      session=null;seekTo(active.span.end);$('timing-edit-status').textContent='Preview complete. Save sentence to keep these timings.';
     }else if(active.kind==='blind'){
       active.played++;$('blind-status').textContent=`Listen ${active.played} of 2 complete.`;
       if(active.played<2){$('blind-status').textContent='Listen 2 of 2…';await beginRange(active,active.id);}
@@ -129,21 +138,28 @@ export async function connectStudy(api){
     else{session=null;$('play-status').textContent='Lesson audio complete.';}
     mini();
   }
-  for(const event of ['playing','seeked','ratechange'])player.addEventListener(event,scheduleBoundary);
+  for(const event of ['playing','ratechange'])player.addEventListener(event,scheduleBoundary);
+  player.addEventListener('seeking',()=>{
+    // App seeks start a bounded replay; user scrubbing releases its boundary.
+    const ownSeek=appSeek!==null&&Math.abs(player.currentTime-appSeek)<.05;
+    clearTimeout(boundaryTimer);
+    if(!ownSeek){
+      appSeek=null;
+      if(session?.kind==='sentence'||session?.kind==='preview'||(api.getProgress().step===4&&shadowMode==='sentence'))freePlayback();
+    }
+  });
+  player.addEventListener('seeked',()=>{appSeek=null;scheduleBoundary();});
   player.addEventListener('pause',()=>{clearTimeout(boundaryTimer);mini();});
-  player.addEventListener('timeupdate',()=>{mini();const span=session?.kind==='sentence'?sentences()[segmentIndex]:session?.span;if(span&&player.currentTime>=span.end)finishRange().catch(error=>api.notice(error.message));});
+  player.addEventListener('timeupdate',()=>{mini();const span=session?.kind==='sentence'?sentences()[segmentIndex]:session?.span;if(span&&!player.seeking&&appSeek===null&&player.currentTime>=span.end)finishRange().catch(error=>api.notice(error.message));});
   player.addEventListener('play',()=>{
     mini();clearTimeout(gapTimer);$('play-status').textContent='';
-    if(session?.kind==='sentence'&&session.finishing){
-      // Resume from the paused playhead, including any gap before the next phrase.
-      const next=sentences().findIndex(span=>span.end>player.currentTime+.03);
-      if(next>=0){segmentIndex=next;session={kind:'sentence'};refreshSentences();}
-      else session={kind:'continuation'};
+    if(!boundedPlay&&api.getProgress().step===4&&shadowMode==='sentence'){
+      // Play always follows the playhead. Only Repeat and Preview bound a sentence.
+      freePlayback();
     }else if(session?.finishing)session.finishing=false;
-    if(!session&&api.getProgress().step===4&&shadowMode==='sentence'&&sentences().length){session={kind:'sentence'};const span=sentences()[segmentIndex];if(player.currentTime!==0&&(player.currentTime<span.start||player.currentTime>=span.end))player.currentTime=span.start;}
-    else if(!session&&[0,1,3,4].includes(api.getProgress().step)){
+    if(!session&&[0,1,3,4].includes(api.getProgress().step)){
       session={kind:'lesson',span:dialogue(api.getActiveAudioId())};
-      if(player.currentTime<session.span.start||player.currentTime>=session.span.end)player.currentTime=session.span.start;
+      if(player.currentTime<session.span.start||player.currentTime>=session.span.end)seekTo(session.span.start);
     }
     scheduleBoundary();
   });
@@ -158,7 +174,7 @@ export async function connectStudy(api){
   $('speed').value=String(course.rate);player.playbackRate=course.rate;$('speed').addEventListener('change',()=>{course.rate=Number($('speed').value);player.playbackRate=course.rate;saveCourse().catch(()=>{});});
   $('repeat').addEventListener('change',()=>{if(session?.kind==='blind'||session?.kind==='review')stopSession();if(session?.kind==='sentence'){player.loop=false;$('repeat').checked=false;api.notice('Use Repeat sentence for sentence practice.');}});
   $('mini-play').addEventListener('click',()=>{clearTimeout(gapTimer);if(!player.paused){player.pause();return;}play();});
-  $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='sentence')startSentence();else{player.currentTime=dialogue(api.getActiveAudioId()).start;session=null;play();}});
+  $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='sentence')startSentence();else{seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   document.addEventListener('study-navigation',()=>{mini();if(!$('study').hidden)update().catch(error=>api.notice(error.message));else reader.clear();});window.addEventListener('scroll',mini,{passive:true});
   async function analyze(){const id=api.getActiveAudioId(),meta=api.getLibrary().find(x=>x.id===id);if(!meta){api.notice('Import and select a lesson recording first.');return;}stopSession();const ticket=++analysisGeneration;activeAnalysisTicket=ticket;$('detect-sentences').disabled=true;$('sentence-status').textContent='Finding pauses on this device…';let context;try{context=new (window.AudioContext||window.webkitAudioContext)();const buffer=await context.decodeAudioData(await(await api.getFile(meta)).arrayBuffer());if(ticket!==analysisGeneration||id!==api.getActiveAudioId())return;const channels=Array.from({length:buffer.numberOfChannels},(_,i)=>buffer.getChannelData(i));course.segmentMode[id]='custom';course.segments[id]=detectSegments(channels,buffer.sampleRate,buffer.duration);await saveCourse();segmentIndex=0;refreshSentences();$('play-status').textContent='Pauses detected. Check the boundaries; you can join or split phrases below.';}catch(error){api.notice('Pause detection could not finish. You can enter sentence timings manually.');refreshSentences();}finally{if(context)await context.close().catch(()=>{});if(activeAnalysisTicket===ticket){$('detect-sentences').disabled=false;refreshSentences();}}}
   $('detect-sentences').addEventListener('click',analyze);
