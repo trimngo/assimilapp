@@ -68,3 +68,7 @@ In Shadowing, tap **Add sentence** below the audio player to enter a missing cut
 Sentence insertion regression: run `node scripts/check_sentence_insertion.mjs /path/to/L011-LESSON.mp3` with the local server and Playwright available. This checks adding and splitting cuts, overlap rejection, preserving existing edits, bounded playback, backup/restore, and offline retention. It accepts the same server/browser overrides as the other browser checks.
 
 Shadowing has one sentence timing section immediately below the audio player. **Edit sentence** and **Add sentence** switch between its forms; tapping the active button closes the form. Split at playhead is available in either form. Adding or splitting selects the new cut and opens its timing editor.
+
+The toolbar and compact audio player share a separate viewport overlay that tracks iPhone keyboard, browser chrome, orientation, and foreground changes. The toolbar spacer preserves page layout; the player appears when the full player scrolls behind the toolbar. Timer expiry changes the timer to red overtime silently, without a popup.
+
+Floating-controls regression: run `node scripts/check_floating_controls.mjs /path/to/L012-LESSON.mp3 /path/to/001-300.pdf` with the local server and Playwright available. This checks scrolling real pages, panel touch controls, simulated visible-viewport changes, orientation, silent overtime, and offline reload. It accepts the same browser/server overrides as the other browser checks.

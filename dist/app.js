@@ -1,3 +1,4 @@
+import {setupFloatingUI} from './floating-ui.js';
 import {setupOffline} from './updates.js';
 import {connectStudy} from './study.js';
 import {fingerprintCandidates,matchedSource,matchedAudio,matchedCombinedBook} from './course-data.js';
@@ -6,6 +7,7 @@ import {connectStepTimer,validateDurations} from './step-timer.js';
 import {emptyCompletions,validateCompletions,recordCompletion} from './completions.js';
 import {connectProgressView} from './progress-view.js';
 const $ = id => document.getElementById(id);
+setupFloatingUI();
 const steps = [
   ['Review','Listen to the previous two or three lessons. Tap Play review to listen to them in order.',''],
   ['Blind listening','Listen to the new lesson twice without looking at the book.','Each listen includes both recorded readings when present. Playback stops after the second listen.'],

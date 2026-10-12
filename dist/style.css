@@ -44,3 +44,11 @@ textarea,.page-fields input{background:var(--white);color:var(--ink)}
 .sentence-tool-actions button[aria-expanded="true"]{background:var(--ink);color:var(--white);border-color:var(--ink)}
 #sentence-timing-options{border:0;margin-top:12px}
 #sentence-tools-extra{border-top:1px solid var(--line);margin-top:12px}
+/* Both floating controls follow the visible viewport, including iOS keyboard changes. */
+#floating-ui{position:fixed;top:var(--viewport-top,0px);left:var(--viewport-left,0px);width:var(--viewport-width,100%);height:var(--viewport-height,100dvh);z-index:12;pointer-events:none}
+#floating-ui>.top-bar{position:absolute;top:0;left:0;right:0;margin:0;padding-left:24px;padding-right:24px;pointer-events:auto}
+.toolbar-spacer{height:var(--toolbar-height,63px);margin-bottom:16px}
+#floating-ui>#mini-player{position:absolute;left:16px;right:16px;max-width:650px;width:auto;margin:0 auto;transform:none;pointer-events:auto}
+html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
+@media(max-width:700px){#floating-ui>.top-bar{padding-left:18px;padding-right:18px}.toolbar-spacer{margin-bottom:14px}}
+#floating-ui #app-menu nav{max-height:calc(var(--viewport-height,100dvh) - var(--toolbar-height,63px) - 12px);overflow-y:auto;overscroll-behavior:contain}

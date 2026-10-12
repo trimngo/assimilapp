@@ -35,10 +35,6 @@ export async function connectStepTimer(api){
   function render(){
     if(!current)return;
     const remaining=remainingTime(current),name=api.steps[current.step][0];
-    let changed=false;
-    if(remaining<=0&&!current.notified&&visible()){
-      current.notified=true;changed=true;api.notice(`${name} time is up. Keep studying, or move to the next step.`);
-    }
     const time=remaining===0?'+00:00':formatCountdown(remaining);
     $('timer-time').textContent=time;
     const running=current.deadline!==null;
@@ -46,7 +42,6 @@ export async function connectStepTimer(api){
     button.dataset.state=running?(remaining<=0?'overtime':'running'):'paused';
     button.setAttribute('aria-label',`${running?'Pause':'Resume'} ${name} timer, ${time.replace('+','')} ${remaining<0?'over time':'remaining'}${running?'':'. Long press to restart.'}`);
     button.title=running?'Tap to pause timer':'Tap to resume; long press to restart timer';
-    if(changed)persist().catch(()=>{});
   }
   function update(){
     const progress=api.getProgress();let changed=false;
