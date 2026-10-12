@@ -45,6 +45,24 @@ export function replaceSegment(segments,index,times,duration=Infinity) {
   validateSegments(next,duration);
   return next;
 }
+export function insertSegment(segments,times,duration=Infinity) {
+  const span=validateSegments([times],duration)[0];
+  if(segments.some(existing=>span.start<existing.end-.005&&span.end>existing.start+.005))
+    throw new Error('This overlaps an existing sentence. Shorten that cut first, or use Split at playhead.');
+  const next=segments.map(segment=>({...segment}));
+  const index=next.findIndex(segment=>segment.start>=span.start);
+  const position=index<0?next.length:index;
+  next.splice(position,0,span);validateSegments(next,duration);
+  return {segments:next,index:position};
+}
+export function splitSegment(segments,index,time,duration=Infinity) {
+  const span=segments[index],cut=+Number(time).toFixed(2);
+  if(!span||!Number.isFinite(cut)||cut<=span.start||cut>=span.end)
+    throw new Error('Move the playhead inside the sentence you want to split.');
+  const next=segments.map(segment=>({...segment}));
+  next.splice(index,1,{...span,end:cut,needsReview:true},{...span,start:cut,needsReview:true});
+  validateSegments(next,duration);return {segments:next,index:index+1};
+}
 export function parseSegments(text, duration) {
   return validateSegments(text.trim().split(/\n+/).filter(Boolean).map(line=>{
     const parts=line.trim().split(/\s*[,;]\s*|\s+/);

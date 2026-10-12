@@ -62,3 +62,7 @@ Sentence playback regression: serve the repository locally, install Playwright, 
 Dark mode follows your device appearance by default. Choose **Menu → Settings → Appearance** to keep Light or Dark mode on this device. The choice persists offline; scanned book pages keep their original colors.
 
 Appearance and timer regression: with the local server and Playwright available, run `node scripts/check_appearance_timer.mjs /path/to/L001-LESSON.mp3`. This exercises device and saved themes, narrow-screen layout, overtime without stopping audio, pause/resume, touch long press, and offline retention. It accepts the same server/browser overrides as the sentence playback check.
+
+In Shadowing, open **Add a sentence** to enter a missing cut’s start/end or copy either from the playhead. Preview, then Add sentence; it is inserted in time order and selected automatically. If one cut contains two sentences, seek to their boundary and choose **Split at playhead**. Both methods preserve other edits and are included in progress backups. Overlapping cuts must be shortened before adding a sentence.
+
+Sentence insertion regression: run `node scripts/check_sentence_insertion.mjs /path/to/L011-LESSON.mp3` with the local server and Playwright available. This checks adding and splitting cuts, overlap rejection, preserving existing edits, bounded playback, backup/restore, and offline retention. It accepts the same server/browser overrides as the other browser checks.

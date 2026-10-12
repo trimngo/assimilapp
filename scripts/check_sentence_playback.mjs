@@ -59,7 +59,7 @@ await page.locator('#mini-repeat').click();await page.waitForFunction(()=>docume
 await page.locator('#mini-play').click();await page.waitForTimeout(1000);assert(await time()>end+.8);await assertSelected(2);await pause();
 console.log('Compact Play and Repeat use the same free/bounded behavior.');
 // Opt-in sequential automatic continuation remains; scrubbing cancels the queued gap.
-await page.locator('#sentence-controls > details > summary').click();await page.locator('#sentence-auto').check();
+await page.locator('#sentence-controls > details:has(#sentence-auto) > summary').click();await page.locator('#sentence-auto').check();
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
 await seek(0);await page.waitForTimeout(1500);await assertSelected(2);assert.equal(await page.locator('#player').evaluate(p=>p.paused),true);
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('sentence-status').textContent.startsWith('Sentence 3')&&!document.getElementById('player').paused);await pause();await page.locator('#sentence-auto').uncheck();
