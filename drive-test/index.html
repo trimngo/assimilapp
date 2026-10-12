@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f2e9">
+  <title>Drive download test</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <a href="../dist/">← Return to study app</a>
+    <h1>Drive download test</h1>
+    <p>This separate page checks whether your browser can download and save public Google Drive files. It leaves your study progress, timings and imported files alone.</p>
+    <ol>
+      <li>Make the PDF and one MP3 accessible to <strong>Anyone with the link</strong>, then paste each individual file link below.</li>
+      <li>Download each file. This must succeed here; opening its Drive preview is a different test.</li>
+      <li>Wait for <strong>Test page available offline</strong>, turn on Airplane Mode, reload this page, and open the saved PDF and play the MP3.</li>
+    </ol>
+    <p class="note">No Google login or API key is used. The app downloads the original files, with no conversion. Test downloads use extra space on this device.</p>
+    <form id="download-form">
+      <label>File type<select id="kind"><option value="pdf">Full book PDF</option><option value="audio">One lesson MP3</option></select></label>
+      <label>Individual Google Drive file link<input id="drive-link" type="url" required placeholder="https://drive.google.com/file/d/…/view" autocomplete="off" autocapitalize="none" spellcheck="false"></label>
+      <div class="actions"><button id="download" type="submit" disabled>Download and save</button><button id="cancel" type="button" disabled>Cancel download</button></div>
+    </form>
+    <p id="download-status" role="status">Opening test storage…</p>
+    <progress id="download-progress" hidden aria-label="Download progress"></progress>
+    <section aria-labelledby="saved-title">
+      <h2 id="saved-title">Saved test files</h2>
+      <div id="saved-files"></div>
+      <p id="offline-status" class="note" role="status">Preparing offline test page…</p>
+      <button id="clear" type="button" disabled>Remove test downloads</button>
+    </section>
+    <section id="preview" hidden>
+      <h2 id="preview-title">Saved file</h2>
+      <audio id="audio" controls hidden></audio>
+      <iframe id="pdf" title="Saved book PDF" hidden></iframe>
+      <button id="close-preview" type="button">Close preview</button>
+    </section>
+    <details>
+      <summary>Test details</summary>
+      <p class="note">Both requests use normal browser CORS checks without cookies. A failed request can mean cross-origin restrictions, sharing settings, or a network problem; this page cannot distinguish those on its own. An HTML preview or confirmation page is rejected rather than saved as a book or recording.</p>
+      <pre id="test-log" aria-label="Download test log"></pre>
+      <button id="copy-log" type="button">Copy test results</button>
+    </details>
+  </main>
+  <script type="module" src="test.js"></script>
+</body>
+</html>
