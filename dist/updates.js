@@ -1,5 +1,5 @@
-export const APP_VERSION='3.8.0';
-export const CACHE_NAME='german-study-shell-v13';
+export const APP_VERSION='3.9.0';
+export const CACHE_NAME='german-study-shell-v14';
 
 const $=id=>document.getElementById(id);
 function deadline(promise,milliseconds,message){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),milliseconds);})]).finally(()=>clearTimeout(timer));}

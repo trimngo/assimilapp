@@ -37,3 +37,10 @@ textarea,.page-fields input{background:var(--white);color:var(--ink)}
 :root[data-theme="dark"] .completed-tag{background:#314d3b}
 :root[data-theme="dark"] .calendar-day.studied{background:#293e30}
 :root[data-theme="dark"] .sentence-list button.selected,:root[data-theme="dark"] .calendar-count,:root[data-theme="dark"] #notice{color:var(--white)}
+/* One sentence editor beside playback, with no nested disclosure panels. */
+#sentence-tools{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+.sentence-tool-actions{display:flex;gap:8px}
+.sentence-tool-actions button{flex:1;min-width:0;padding:10px 8px}
+.sentence-tool-actions button[aria-expanded="true"]{background:var(--ink);color:var(--white);border-color:var(--ink)}
+#sentence-timing-options{border:0;margin-top:12px}
+#sentence-tools-extra{border-top:1px solid var(--line);margin-top:12px}
