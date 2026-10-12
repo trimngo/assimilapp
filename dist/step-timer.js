@@ -8,12 +8,12 @@ export function validateDurations(values){
 }
 
 export function remainingTime(session,now=Date.now()){
-  return Math.max(0,Math.min(session.remainingMs,session.deadline===null?session.remainingMs:session.deadline-now));
+  return Math.min(session.remainingMs,session.deadline===null?session.remainingMs:session.deadline-now);
 }
 
 export function formatCountdown(milliseconds){
-  const seconds=Math.ceil(Math.max(0,milliseconds)/1000);
-  return `${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
+  const overtime=milliseconds<0,seconds=overtime?Math.floor(-milliseconds/1000):Math.ceil(milliseconds/1000);
+  return `${overtime?'+':''}${String(Math.floor(seconds/60)).padStart(2,'0')}:${String(seconds%60).padStart(2,'0')}`;
 }
 
 export async function connectStepTimer(api){
@@ -23,7 +23,7 @@ export async function connectStepTimer(api){
   try{if(stored?.durations)durations=validateDurations(stored.durations);}catch{}
   const saved=stored?.current;
   if(saved&&Number.isInteger(saved.lesson)&&saved.lesson>0&&Number.isInteger(saved.step)&&saved.step>=0&&saved.step<durations.length&&
-    Number.isFinite(saved.remainingMs)&&saved.remainingMs>=0&&saved.remainingMs<=durations[saved.step]*60000&&
+    Number.isFinite(saved.remainingMs)&&saved.remainingMs<=durations[saved.step]*60000&&
     (saved.deadline===null||Number.isFinite(saved.deadline)))current={...saved,resumeOnStudy:!!saved.resumeOnStudy,notified:!!saved.notified};
   const visible=()=>!$('study').hidden;
   function persist(){
@@ -36,16 +36,16 @@ export async function connectStepTimer(api){
     if(!current)return;
     const remaining=remainingTime(current),name=api.steps[current.step][0];
     let changed=false;
-    if(remaining===0&&current.deadline!==null){current.remainingMs=0;current.deadline=null;current.resumeOnStudy=false;changed=true;}
-    if(remaining===0&&!current.notified&&visible()){
+    if(remaining<=0&&!current.notified&&visible()){
       current.notified=true;changed=true;api.notice(`${name} time is up. Keep studying, or move to the next step.`);
     }
-    $('timer-time').textContent=formatCountdown(remaining);
+    const time=remaining===0?'+00:00':formatCountdown(remaining);
+    $('timer-time').textContent=time;
     const running=current.deadline!==null;
-    $('timer-icon').setAttribute('d',remaining===0?'M2 6a5 5 0 1 1 1.4 3.5M2 2v4h4':running?'M4 2v8M8 2v8':'M3 1l7 5-7 5z');
-    button.dataset.state=remaining===0?'complete':running?'running':'paused';
-    button.setAttribute('aria-label',`${remaining===0?'Restart':running?'Pause':'Resume'} ${name} timer, ${formatCountdown(remaining)} remaining`);
-    button.title=remaining===0?'Time is up. Tap to restart.':running?'Tap to pause timer':'Tap to resume timer';
+    $('timer-icon').setAttribute('d',running?'M4 2v8M8 2v8':'M3 1l7 5-7 5z');
+    button.dataset.state=running?(remaining<=0?'overtime':'running'):'paused';
+    button.setAttribute('aria-label',`${running?'Pause':'Resume'} ${name} timer, ${time.replace('+','')} ${remaining<0?'over time':'remaining'}${running?'':'. Long press to restart.'}`);
+    button.title=running?'Tap to pause timer':'Tap to resume; long press to restart timer';
     if(changed)persist().catch(()=>{});
   }
   function update(){
@@ -54,8 +54,8 @@ export async function connectStepTimer(api){
       current={lesson:progress.lesson,step:progress.step,remainingMs:Math.round(durations[progress.step]*60000),deadline:null,resumeOnStudy:true,notified:false};changed=true;
     }
     if(!visible()&&current.deadline!==null){
-      current.remainingMs=remainingTime(current);current.deadline=null;current.resumeOnStudy=current.remainingMs>0;changed=true;
-    }else if(visible()&&current.resumeOnStudy&&current.remainingMs>0){
+      current.remainingMs=remainingTime(current);current.deadline=null;current.resumeOnStudy=true;changed=true;
+    }else if(visible()&&current.resumeOnStudy){
       current.deadline=Date.now()+current.remainingMs;current.resumeOnStudy=false;changed=true;
     }
     button.hidden=!visible();render();
@@ -81,9 +81,26 @@ export async function connectStepTimer(api){
     if(reset){current.remainingMs=Math.round(durations[current.step]*60000);current.notified=false;if(current.deadline!==null)current.deadline=Date.now()+current.remainingMs;}
     fillSettings();render();await persist();return reset;
   }
-  button.addEventListener('click',()=>{
-    if(remainingTime(current)===0)restart();
-    else if(current.deadline!==null){current.remainingMs=remainingTime(current);current.deadline=null;current.resumeOnStudy=false;}
+  let holdTimer=null,longPressed=false,holdOrigin=null;
+  function cancelHold(){clearTimeout(holdTimer);holdTimer=null;holdOrigin=null;}
+  button.addEventListener('pointerdown',event=>{
+    cancelHold();longPressed=false;
+    if(current.deadline!==null||!event.isPrimary||event.button!==0)return;
+    holdOrigin={x:event.clientX,y:event.clientY};
+    button.setPointerCapture(event.pointerId);
+    holdTimer=setTimeout(()=>{
+      holdTimer=null;longPressed=true;restart();persist().catch(()=>{});
+    },650);
+  });
+  button.addEventListener('pointermove',event=>{
+    if(holdOrigin&&Math.hypot(event.clientX-holdOrigin.x,event.clientY-holdOrigin.y)>10)cancelHold();
+  });
+  for(const event of ['pointerup','pointercancel','lostpointercapture'])button.addEventListener(event,cancelHold);
+  button.addEventListener('contextmenu',event=>event.preventDefault());
+  button.addEventListener('click',event=>{
+    if(longPressed&&event.detail!==0){longPressed=false;return;}
+    longPressed=false;
+    if(current.deadline!==null){current.remainingMs=remainingTime(current);current.deadline=null;current.resumeOnStudy=false;}
     else{current.deadline=Date.now()+current.remainingMs;current.resumeOnStudy=false;}
     render();persist().catch(()=>{});
   });

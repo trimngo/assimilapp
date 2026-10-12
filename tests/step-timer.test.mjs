@@ -8,7 +8,7 @@ test('countdown uses elapsed wall time when the browser suspends ticks or reload
   const reopened=JSON.parse(JSON.stringify(stored));
   assert.equal(remainingTime(reopened,1123456),176544);
   assert.equal(remainingTime(reopened,1300000),0);
-  assert.equal(remainingTime(reopened,1500000),0);
+  assert.equal(remainingTime(reopened,1500000),-200000);
   assert.equal(remainingTime(reopened,900000),300000);
 });
 test('pausing freezes remaining time until a new deadline is set',()=>{
@@ -26,4 +26,19 @@ test('invalid backup durations cannot turn a countdown negative or unbounded',()
   assert.throws(()=>validateDurations(valid.slice(1)));
   assert.throws(()=>validateDurations(null));
   assert.deepEqual(validateDurations([.1,...valid.slice(1)]),[.1,...valid.slice(1)]);
+});
+
+
+test('overtime counts upward and freezes when paused, then resumes from that amount',()=>{
+  const expired={remainingMs:6000,deadline:100000};
+  assert.equal(remainingTime(expired,102500),-2500);
+  assert.equal(formatCountdown(-2500),'+00:02');
+  assert.equal(formatCountdown(-999),'+00:00');
+  assert.equal(formatCountdown(-3601000),'+60:01');
+  const paused={remainingMs:remainingTime(expired,102500),deadline:null};
+  assert.equal(remainingTime(paused,900000),-2500);
+  const restored=JSON.parse(JSON.stringify(paused));
+  const resumed={...restored,deadline:900000+restored.remainingMs};
+  assert.equal(remainingTime(resumed,903000),-5500);
+  assert.equal(formatCountdown(remainingTime(resumed,903000)),'+00:05');
 });
