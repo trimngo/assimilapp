@@ -2,9 +2,9 @@
 
 This directory contains lesson titles, page mappings, and audio metadata for the supplied 614-page scan. It does not contain the PDF, lesson dialogue text, recordings, or speech model. Import those files locally on the device; the index lets the study app find the lesson without asking for page numbers or audio choices.
 
-`assimil-german.index.json` is the generated index. `book-layout.json` stores the reviewed crop coordinates so the scan can be prepared again without repeating OCR or crop selection. `lesson-titles.json` contains the 100 titles checked visually against the scan, with OCR mistakes and footnote markers removed. Book preprocessing includes these headings in the index.
+`assimil-german.index.json` is the generated index. `book-layout.json` stores the reviewed crop coordinates and numbered dialogue labels so the scan can be prepared again without repeating OCR or crop selection. `dialogue-label-corrections.json` stores visually checked positions of three labels missing from the scan's text layer. `lesson-titles.json` contains the 100 titles checked visually against the scan, with OCR mistakes and footnote markers removed. Book preprocessing includes these headings in the index.
 
-The completed batch includes 100 recording matches, 100 dialogue ranges, and 1,296 draft sentence segments. Automatic sentence checks passed for 22 lessons; 215 boundaries across the other 78 lessons are flagged for review. The median agreement between recognized speech and scanned dialogue text is 96.99%. This measures text matching, not timing accuracy. See `coverage.json` for the lesson lists and `lesson-map.csv` for a readable page/audio map.
+The completed batch includes 100 recording matches, 100 dialogue ranges, and 1,153 prepared cuts for 1,161 numbered dialogue items. Counts match in 92 lessons. Lessons 9, 32, 35, 43, 45, 80, 84, and 91 each retain one merged pair needing a boundary correction. Automatic timing checks passed for 26 lessons; 160 boundaries across the other 74 lessons are flagged for review. The median agreement between recognized speech and scanned dialogue text is 96.98%. Matching counts and text agreement do not establish timing accuracy. See `coverage.json` for the lesson lists and `lesson-map.csv` for a readable page/audio map.
 
 ## Book coverage
 
@@ -23,9 +23,11 @@ The audio folder supplied through Drive contains `L001-LESSON.mp3` through `L100
 
 The first six recordings have a repeated reading. Waveform correlation aligns the repeated numbered lines with the initial reading and verifies the order and line count. Later lessons have a single dialogue reading followed by exercises; review recordings contain their review dialogue.
 
-Sentence timing uses local speech recognition, punctuation from the scanned book, and measured audio silences. The index records text agreement and uncertain boundaries. `auto-aligned` means automatic checks passed; it is not a manual listening review. `needs-review` identifies cases where OCR, recognition, or a missing pause makes a boundary uncertain. Keep these states distinct when using the index. If a numbered line contains several sentences, its verified line timing alone does not establish the internal sentence cuts.
+The target is one primary Shadowing cut per **numbered dialogue item in the book**, including items with several grammatical sentences. Preparation extracts those items in order, aligns their text with local speech recognition, and places boundaries using spoken-word timestamps and measured silences. The PDF determines the items, not their timestamps. The index records each cut's `bookItems`, the expected count, text agreement, and uncertain boundaries. `auto-aligned` means automatic checks passed; it is not a manual listening review. `needs-review` identifies cases where OCR, recognition, or a missing pause makes a boundary uncertain. If a boundary cannot be located, its items stay merged and the count mismatch is flagged instead of inventing uniformly spaced cuts.
 
-All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for sentence playback; they add short padding to avoid clipping consonants. At a sentence pause, Play continues from the playhead to the next sentence ending; Repeat explicitly seeks back. After the final sentence, Play continues through the rest of the file. This uses the prepared cuts without decoding waveforms or loading a speech model. For whole-lesson playback the app starts at zero, including the spoken lesson number and title, and ends at the prepared dialogue boundary before exercises. Blind listening extends through `repeatDialogue` when present, so a single listen includes both recorded readings. The timing editor saves corrections to the current sentence without changing neighboring sentences; remaining draft flags are preserved, including in backups.
+All timestamps are seconds into the **original MP3**. Use `playStart` and `playEnd` for sentence playback; they add short padding to avoid clipping consonants. Play starts at the current playhead and continues freely. Repeat seeks to the selected cut's start and pauses at its end; scrubbing never selects another cut. This uses the prepared cuts without decoding waveforms or loading a speech model. For whole-lesson playback the app starts at zero, including the spoken lesson number and title, and ends at the prepared dialogue boundary before exercises. Blind listening extends through `repeatDialogue` when present, so a single listen includes both recorded readings.
+
+The app compares the active cut count with the book's expected count, including when saved custom timings are active. Missing or extra cuts show a warning. Users can edit, add, or split cuts; intentional extra splits are allowed. Saved custom timings take priority over regenerated defaults and are never automatically replaced. The timing editor saves corrections to the current cut without changing its neighbors; remaining draft flags are preserved, including in backups.
 
 ## Run preprocessing on a laptop
 
@@ -34,7 +36,7 @@ Install Python and FFmpeg, then install the separate preprocessing dependencies:
 ```sh
 python -m pip install -r scripts/requirements-preprocess.txt
 python scripts/preprocess_book.py 001-300.pdf 301-600.pdf 601-614.pdf \
-  --alignment-text work/german-text.json
+  --alignment-text work/numbered-dialogue.json
 python scripts/preprocess_audio.py /path/to/audio-folder
 python scripts/check_course.py
 node scripts/prepare_combined_layout.mjs 001-300.pdf 301-600.pdf 601-614.pdf
@@ -53,7 +55,15 @@ For sentence alignment, additionally install `sherpa-onnx` and download the offi
 ```sh
 python -m pip install sherpa-onnx
 python scripts/preprocess_audio.py /path/to/audio-folder --force \
-  --asr-model /path/to/model-directory --book-text work/german-text.json
+  --asr-model /path/to/model-directory --book-text work/numbered-dialogue.json
+```
+
+`--alignment-text` writes private lists of `{line, text}` items per lesson. Their numbering must cover every item in the book. To regenerate only sentence cuts while retaining exact recording fingerprints, dialogue ends, titles, and repeated-reading ranges, use:
+
+```sh
+python scripts/preprocess_audio.py /path/to/audio-folder --force --alignment-only \
+  --asr-model /path/to/model-directory --book-text work/numbered-dialogue.json
+python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 The model runs locally during preparation. It is not part of the PWA. Private OCR text, model files, recordings, and analysis scratch files belong under ignored `work/` or outside this repository. `--report` selects a local processing report; `--output` writes a separate index and merges later batches into it.

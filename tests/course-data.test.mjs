@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue} from '../dist/course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount} from '../dist/course-data.js';
 const index=JSON.parse(readFileSync(new URL('../dist/course-index.json',import.meta.url)));
 const books=index.book.sources.map(source=>({id:source.id,kind:'pdf',name:source.filename,size:source.bytes,sha256:source.sha256}));
 
@@ -66,4 +66,13 @@ test('lesson playback includes its spoken title and blind listening includes bot
 });
 test('hosted metadata equals the reviewed source index',()=>{
   assert.deepEqual(index,JSON.parse(readFileSync(new URL('../course/assimil-german.index.json',import.meta.url))));
+});
+
+
+test('book numbering stays the expected count even for missing or intentionally extra custom cuts',()=>{
+  const lesson=index.lessons[10];assert.equal(lesson.numberedLineCount,8);
+  assert.deepEqual(dialogueCount(lesson,7),{actual:7,expected:8,matches:false});
+  assert.deepEqual(dialogueCount(lesson,8),{actual:8,expected:8,matches:true});
+  assert.deepEqual(dialogueCount(lesson,9),{actual:9,expected:8,matches:false});
+  assert.deepEqual(dialogueCount(null,7),{actual:7,expected:null,matches:null});
 });

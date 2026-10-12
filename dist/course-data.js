@@ -61,3 +61,10 @@ export function preparedDialogue(lesson, includeRepeat = false) {
     range.end=Math.min(audio.duration,Math.max(range.end,audio.repeatDialogue.end+.1));
   return range;
 }
+
+// The book numbering is the target, even if prepared or user-edited cuts differ.
+export function dialogueCount(lesson, actual){
+  const count=lesson?.numberedLineCount;
+  const expected=Number.isInteger(count)&&count>0?count:null;
+  return {actual,expected,matches:expected===null?null:actual===expected};
+}

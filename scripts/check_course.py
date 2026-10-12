@@ -23,6 +23,8 @@ def check(index):
                 if "crop" in page:
                     x0, y0, x1, y1 = page["crop"]
                     assert 0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1
+        labels = [number for region in lesson["germanDialogue"] for number in region["numberedLines"]]
+        assert labels == list(range(1, lesson["numberedLineCount"] + 1)), "Book dialogue numbering must be complete"
         audio = lesson.get("audio")
         if not audio:
             continue
@@ -36,7 +38,20 @@ def check(index):
             assert len(numbered) == lesson["numberedLineCount"]
             assert [p["line"] for p in numbered] == list(range(1, len(numbered) + 1))
             assert all(p["repeatSimilarity"] >= 0.97 for p in numbered)
-        sentences = audio.get("sentenceAlignment", {}).get("sentenceSegments", [])
+        alignment = audio.get("sentenceAlignment", {})
+        sentences = alignment.get("sentenceSegments", [])
+        if alignment:
+            assert alignment.get("expectedSentenceCount") == lesson["numberedLineCount"]
+            assert alignment.get("countSource") == "book-numbering"
+            assert alignment.get("unit") == "numbered-dialogue-item"
+            matches = len(sentences) == lesson["numberedLineCount"]
+            assert alignment.get("countMatches") is matches
+            assert [number for cut in sentences for number in cut.get("bookItems", [])] == labels
+            if alignment["status"] == "auto-aligned":
+                assert matches and not alignment["uncertainBoundaries"]
+                assert all(not cut["needsReview"] and len(cut["bookItems"]) == 1 for cut in sentences)
+            elif not matches:
+                assert alignment["status"] == "needs-review"
         for phrases in (numbered, sentences, audio.get("pauseCandidates", [])):
             last_end = 0
             for phrase in phrases:

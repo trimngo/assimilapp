@@ -1,0 +1,8 @@
+{
+  "description": "Missing dialogue label positions visually checked against the exact supplied scan. Coordinates are PDF points, not audio timestamps.",
+  "pages": {
+    "283": [{"line": 5, "x": 47, "y": 285}],
+    "337": [{"line": 5, "x": 97, "y": 478}],
+    "341": [{"line": 3, "x": 79, "y": 25}]
+  }
+}

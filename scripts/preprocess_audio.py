@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Match local recordings and prepare pause timings outside the phone app."""
 import argparse
+import copy
 import hashlib
 import json
 import re
@@ -183,7 +184,7 @@ def analyze(path, lesson, recognizer=None, book_text=None):
         from sentence_alignment import align, recognize
         start, end = audio["dialogue"]["start"], audio["dialogue"]["end"]
         tokens = recognize(recognizer, samples, start, end, pauses)
-        aligned = align(tokens, book_text, start, end, pauses)
+        aligned = align(tokens, book_text, start, end, pauses, lesson["numberedLineCount"])
         if aligned.get("sentenceSegments"):
             playback_padding(aligned["sentenceSegments"], duration)
         audio["sentenceAlignment"] = aligned
@@ -191,12 +192,12 @@ def analyze(path, lesson, recognizer=None, book_text=None):
             audio.pop("candidateSpeechGroups", None)
             audio.pop("pauseCandidates", None)
         audio["sentenceStatus"] = aligned["status"]
-        if lesson["number"] <= 3 and phrases and aligned.get("expectedSentenceCount") == len(phrases):
-            # These three source dialogues have one sentence per numbered line.
+        if lesson["number"] <= 6 and phrases and aligned.get("expectedSentenceCount") == len(phrases):
+            # Verified repeat-waveform cuts represent each numbered book item.
             # Their independently verified waveform timings provide stronger endpoints.
             aligned.update({"status": "auto-aligned", "method": "verified-numbered-line-sentences",
-                            "uncertainBoundaries": [], "sentenceSegments": [
-                                {"sentence": p["line"], "start": p["start"], "end": p["end"],
+                            "uncertainBoundaries": [], "countMatches": True, "sentenceSegments": [
+                                {"sentence": p["line"], "bookItems": [p["line"]], "start": p["start"], "end": p["end"],
                                  "playStart": p["playStart"], "playEnd": p["playEnd"],
                                  "method": "repeat-waveform-correlation", "needsReview": False} for p in phrases]})
             audio["sentenceStatus"] = "auto-aligned"
@@ -229,6 +230,33 @@ def recordings(paths):
             raise ValueError(f"Expected an audio folder, ZIP, or MP3: {path}")
 
 
+def realign(path, lesson, recognizer, book_text):
+    from sentence_alignment import align, recognize
+    audio = copy.deepcopy(lesson["audio"])
+    expected = lesson["numberedLineCount"]
+    verified = audio.get("numberedLines", [])
+    if len(verified) == expected and all(p["repeatSimilarity"] >= .97 for p in verified):
+        aligned = {"status": "auto-aligned", "method": "verified-numbered-dialogue-items",
+                   "expectedSentenceCount": expected, "countSource": "book-numbering",
+                   "unit": "numbered-dialogue-item", "countMatches": True, "uncertainBoundaries": [],
+                   "verification": "automatic; not a manual listening review",
+                   "sentenceSegments": [{"sentence": p["line"], "bookItems": [p["line"]],
+                                         **{key: p[key] for key in ["start", "end", "playStart", "playEnd"]},
+                                         "method": "repeat-waveform-correlation", "needsReview": False} for p in verified]}
+    else:
+        start, end = audio["dialogue"]["start"], audio["dialogue"]["end"]
+        pauses = silences(path, audio["duration"])
+        tokens = recognize(recognizer, pcm(path), start, end, pauses)
+        aligned = align(tokens, book_text, start, end, pauses, expected)
+        if aligned.get("sentenceSegments"):
+            playback_padding(aligned["sentenceSegments"], audio["duration"])
+    audio["sentenceAlignment"] = aligned
+    audio["sentenceStatus"] = aligned["status"]
+    if not verified:
+        audio["status"] = "aligned-sentences" if aligned["status"] == "auto-aligned" else "needs-review"
+    return audio
+
+
 def save(index, output):
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".tmp")
@@ -246,7 +274,10 @@ def main():
     parser.add_argument("--force", action="store_true", help="Reanalyze an unchanged recording")
     parser.add_argument("--asr-model", type=Path, help="Optional local NeMo CTC model directory with model.onnx and tokens.txt")
     parser.add_argument("--book-text", type=Path, help="Private OCR text produced by preprocess_book.py --alignment-text")
+    parser.add_argument("--alignment-only", action="store_true", help="Keep existing recording identities and whole-lesson ranges; update only numbered item cuts")
     args = parser.parse_args()
+    if args.alignment_only and not args.asr_model:
+        parser.error("--alignment-only requires --asr-model and --book-text")
     recognizer, book_text = None, {}
     if args.asr_model:
         if not args.book_text:
@@ -279,7 +310,12 @@ def main():
             report["skipped"].append(name)
             continue
         try:
-            audio = analyze(path, lesson, recognizer, book_text.get(str(number)))
+            if args.alignment_only:
+                if not existing or existing.get("sha256") != identity:
+                    raise ValueError("Alignment-only updates require the exact existing recording")
+                audio = realign(path, lesson, recognizer, book_text.get(str(number)))
+            else:
+                audio = analyze(path, lesson, recognizer, book_text.get(str(number)))
             audio["filename"] = name
             lesson["audio"] = audio
             save(index, output)  # Each completed recording survives interruption.

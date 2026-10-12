@@ -128,52 +128,29 @@ def build(pdf_paths, output, export_dir=None, alignment_text=None):
                       "cropCoordinates": "normalized [left, top, right, bottom]; all page numbers are 1-based",
                       "recallReview": "All 208 translation crops visually checked against supplied scan"},
              "lessons": lessons}
+    if previous.get("book", {}).get("combinedLayoutSignature"):
+        index["book"]["combinedLayoutSignature"] = previous["book"]["combinedLayoutSignature"]
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(index, indent=2) + "\n")
     if alignment_text:
+        from dialogue_units import extract_units
+        corrections = json.loads((ROOT / "course/dialogue-label-corrections.json").read_text())["pages"]
         private = {}
         for lesson in lessons:
-            parts = []
+            items = []
             for region in layout["dialogue"]:
                 if region["lesson"] != lesson["number"]:
                     continue
                 page = pages[region["page"] - 1][2]
-                x0, y0, x1, y1 = region["box"]
-                labels = [w for w in page.get_text("words")
-                          if w[4].strip("-–., ").isdigit() and 20 < w[0] < 160
-                          and w[3] - w[1] > 15 and y0 < w[1] < y1
-                          and int(w[4].strip("-–., ")) in region["numberedLines"]
-                          and not (w[0] < 80 and w[1] < 60 and w[4] == str(lesson["number"]))]
-                if labels:
-                    if y0 > 0:
-                        y0 = min(w[1] for w in labels) - 9
-                    # Follow wrapped text after the final label, stopping before
-                    # pronunciation boxes and notes separated by a vertical gap.
-                    large_labels = [w for w in labels if w[3] - w[1] > 24]
-                    tail = max(w[3] for w in (large_labels or labels))
-                    following = [line for line in lines(page)
-                                 if y0 <= line["bbox"][1] < y1 and line["size"] >= 17]
-                    for line in sorted(following, key=lambda l: l["bbox"][1]):
-                        if line["bbox"][1] > tail + 12:
-                            break
-                        tail = max(tail, line["bbox"][3])
-                    y1 = min(y1, tail + 2)
-                body = [line for line in lines(page) if y0 <= line["bbox"][1] < y1]
-                markers = [line["bbox"][1] for line in body if line["text"].strip() == "□"]
-                if markers:
-                    body = [line for line in body if line["bbox"][1] < min(markers)]
-                for line in sorted(body, key=lambda l: (l["bbox"][1], l["bbox"][0])):
-                    if line["size"] < 17:
-                        continue
-                    value = re.sub(r"^\s*\d+\s*[-–]?\s*", "", line["text"])
-                    value = re.sub(r"\b(?:CD|CT|CZ)\b\)?", "", value)
-                    value = re.sub(r"[®@►□]", "", value).strip()
-                    if value and value != "***":
-                        parts.append(value)
-            text = " ".join(parts)
+                items.extend(extract_units(page.get_text("words"), lines(page), region["numberedLines"],
+                                           region["box"][1], region["box"][3], lesson["number"],
+                                           corrections.get(str(region["page"]))))
+            if [item["line"] for item in items] != list(range(1, lesson["numberedLineCount"] + 1)):
+                raise ValueError(f"Lesson {lesson['number']}: dialogue labels must cover every numbered item")
             if lesson["number"] == 7:
-                text = text.replace("Guten Tagt", "Guten Tag!")  # Reviewed punctuation OCR error.
-            private[str(lesson["number"])] = text
+                for item in items:
+                    item["text"] = item["text"].replace("Guten Tagt", "Guten Tag!")
+            private[str(lesson["number"])] = items
         alignment_text.parent.mkdir(parents=True, exist_ok=True)
         alignment_text.write_text(json.dumps(private, ensure_ascii=False, indent=2) + "\n")
     if export_dir:
