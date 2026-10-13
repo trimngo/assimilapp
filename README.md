@@ -39,6 +39,8 @@ Split PDFs and recordings are identified by SHA-256; renamed originals still mat
 
 For other books, **Book options** retains custom page numbers, optional page patterns, and English-area selection. **Playback options** allows manual audio choices. Existing file identities, page mappings, custom timings, and progress remain stored. Known originals use prepared cuts by default; previous timing lists can be selected with **Use saved custom timings**. New timing edits take precedence until you switch back. Choose **Use automatically matched pages** or **Use prepared sentence timings** to switch back from custom settings. Local pause detection is available only on request for other recordings. Recall refuses an uncropped whole page when there is no English-only area.
 
+In landscape on any device, lesson pages use the full available width with 8-pixel side gutters that respect screen safe areas and an 8-pixel gap between pages. **Two-page view in landscape** in Book options switches between a spread and a single wider page.
+
 ## Updates and backups
 
 In **Menu → Help & updates**, check the running version and choose **Check for updates** while online, then **Reload app** when a release is ready. Updates preserve IndexedDB and OPFS materials and progress, replacing only the app's shell cache. Offline checks show the running version without claiming it is the latest.

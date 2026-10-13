@@ -59,3 +59,8 @@ html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
 .playback-position input{display:block;width:100%;height:32px;margin:0;accent-color:var(--ink);cursor:pointer}
 #playback-time{display:block;text-align:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 #audio-details{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
+/* Let lesson pages use the available landscape width on every device. */
+@media(orientation:landscape){
+  body[data-view="study"] .shell{max-width:none;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+  .pdf-pages{column-gap:8px}
+}
