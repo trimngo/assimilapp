@@ -59,6 +59,10 @@ Run `npm test` for timing validation, fingerprint matching, full-book and split-
 
 Sentence playback regression: serve the repository locally, install Playwright, then run `node scripts/check_sentence_playback.mjs /path/to/L010-LESSON.mp3`. This checks fixed sentence selection while scrubbing, the lesson 10 timing correction, free Play versus bounded Repeat/Preview, compact controls, automatic continuation, and offline retention. `STUDY_URL`, `PLAYWRIGHT_MODULE`, and `CHROMIUM_PATH` can override the server URL and browser installation.
 
+The main audio player has compact Play/Pause, a seek bar, and elapsed/total time. Both playback views read the audio element's actual position, with a check every quarter second while playing as well as media events. Review limits do not depend on receiving a seek-complete event; source changes reset pending seeks. This keeps dialogue stops and displayed positions working when a browser delays or misses media notifications. Custom sentence selection and saved timings remain independent of the playhead.
+
+Review playback regression: run `node scripts/check_review_playback.mjs /path/to/L010-LESSON.mp3 /path/to/L011-LESSON.mp3 /path/to/L012-LESSON.mp3 /path/to/L013-LESSON.mp3` with the same server/browser overrides. It checks review for lesson 13 with suppressed seek/progress events, stopping before exercises, main and compact position displays, Play/Pause and seeking, preserving saved cuts, and offline restart.
+
 Dark mode follows your device appearance by default. Choose **Menu → Settings → Appearance** to keep Light or Dark mode on this device. The choice persists offline; scanned book pages keep their original colors.
 
 Appearance and timer regression: with the local server and Playwright available, run `node scripts/check_appearance_timer.mjs /path/to/L001-LESSON.mp3`. This exercises device and saved themes, narrow-screen layout, overtime without stopping audio, pause/resume, touch long press, and offline retention. It accepts the same server/browser overrides as the sentence playback check.

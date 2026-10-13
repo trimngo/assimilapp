@@ -14,6 +14,7 @@ const seek=async time=>{await page.locator('#player').evaluate((p,t)=>p.currentT
 const nativePlay=()=>page.locator('#player').evaluate(p=>p.play());
 const pause=()=>page.locator('#player').evaluate(p=>p.pause());
 const time=()=>page.locator('#player').evaluate(p=>p.currentTime);
+const advancePast=target=>page.waitForFunction(target=>document.getElementById('player').currentTime>target&&!document.getElementById('player').paused,target,{timeout:4000});
 const selected=()=>page.locator('#sentence-status').textContent();
 const assertSelected=async n=>assert.match(await selected(),new RegExp(`^Sentence ${n} of`));
 const save=async()=>{await page.locator('#save-sentence').click();await page.waitForFunction(()=>document.getElementById('timing-edit-status').textContent.startsWith('Sentence timings saved'));};
@@ -36,9 +37,9 @@ console.log('Lesson 10: shortened first cut, sought into its freed gap, and save
 await page.locator('#sentence-play').click();assert(Math.abs(await time()-earlier)<.35);
 await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
 assert(Math.abs(await time()-end)<.03);await assertSelected(2);
-await nativePlay();await page.waitForTimeout(1100);assert(await time()>end+.8);await assertSelected(2);await pause();
+await nativePlay();await advancePast(end+.8);await assertSelected(2);await pause();
 // Pausing then resuming with Play releases the bound, starting at precisely the paused location.
-await page.locator('#sentence-play').click();await page.waitForTimeout(150);await pause();const paused=await time();await nativePlay();await page.waitForTimeout(1000);assert(await time()>paused+.85);assert(await time()>end);await assertSelected(2);await pause();
+await page.locator('#sentence-play').click();await page.waitForTimeout(150);await pause();const paused=await time();await nativePlay();await advancePast(Math.max(end,paused+.85));await assertSelected(2);await pause();
 console.log('Repeat stops at saved end. Native Play resumes freely, including after a manual pause.');
 // Scrub both forward and backward during bounded playback; nothing snaps or selects another sentence.
 for(const target of [spans[2].end+1,0]){
@@ -56,7 +57,7 @@ console.log('Preview bounds only its draft cut; scrubbing also releases Preview 
 // Mini-player parity.
 await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));await page.waitForFunction(()=>!document.getElementById('mini-player').hidden);
 await page.locator('#mini-repeat').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
-await page.locator('#mini-play').click();await page.waitForTimeout(1000);assert(await time()>end+.8);await assertSelected(2);await pause();
+await page.locator('#mini-play').click();await advancePast(end+.8);await assertSelected(2);await pause();
 console.log('Compact Play and Repeat use the same free/bounded behavior.');
 // Opt-in sequential automatic continuation remains; scrubbing cancels the queued gap.
 await page.locator('#sentence-controls > details:has(#sentence-auto) > summary').click();await page.locator('#sentence-auto').check();
