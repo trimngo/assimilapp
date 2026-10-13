@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {detectSegments,validateSegments,parseSegments,replaceSegment,insertSegment,splitSegment} from '../dist/audio-tools.js';
+import {detectSegments,validateSegments,parseSegments,replaceSegment,insertSegment,splitSegment,playbackFailure} from '../dist/audio-tools.js';
 
 test('pause detection separates long gaps while keeping short speech pauses together',()=>{
   const rate=16000,samples=new Float32Array(rate*5);
@@ -54,4 +54,13 @@ test('splitting a merged sentence selects the second half without changing neigh
   for(const time of [2,3,7,8,NaN])assert.throws(()=>splitSegment(original,1,time,10));
   assert.throws(()=>splitSegment(original,-1,5,10));
   assert.deepEqual(validateSegments(JSON.parse(JSON.stringify(result.segments)),10),validateSegments(result.segments,10));
+});
+
+test('audio warnings ignore canceled or stale loads and preserve actual browser error codes',()=>{
+  const player=(error,currentSrc='blob:current',source='blob:current')=>({error,currentSrc,getAttribute:()=>source});
+  assert.equal(playbackFailure(player(null)),null);
+  assert.equal(playbackFailure(player({code:1})),null);
+  assert.equal(playbackFailure(player({code:3},'blob:old')),null);
+  assert.equal(playbackFailure(player({code:4},'',null)),null);
+  for(const code of [2,3,4]){const failure=playbackFailure(player({code,message:'Output renderer failed'}));assert.equal(failure.code,code);assert.equal(failure.detail,'Output renderer failed');assert.match(failure.message,/Reconnect audio/);assert(!/iPhone|reimport/i.test(failure.message));}
 });

@@ -71,3 +71,11 @@ export function parseSegments(text, duration) {
   }),duration);
 }
 export function formatTime(seconds) { if(!Number.isFinite(seconds))return '0:00';const m=Math.floor(seconds/60),s=Math.floor(seconds%60);return `${m}:${String(s).padStart(2,'0')}`; }
+
+// Canceled loads and events from a replaced source are not playback failures.
+export function playbackFailure(player){
+  const error=player.error,source=player.getAttribute('src');
+  if(!source||!error||error.code===1||(player.currentSrc&&player.currentSrc!==source))return null;
+  const messages={2:'The browser could not read the recording',3:'Audio playback failed in this browser',4:'The browser could not open the recording'};
+  return {code:error.code,detail:error.message||'',message:`${messages[error.code]||'Audio playback failed'} (audio error ${error.code}). Try Playback options → Reconnect audio, especially after switching Bluetooth output.`};
+}
