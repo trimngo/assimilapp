@@ -12,7 +12,7 @@ page.on('pageerror',e=>errors.push(e.message));
 const menu=async tab=>{await page.locator('#app-menu summary').click();await page.locator(`[data-tab=${tab}]`).click();};
 const seek=async time=>{await page.locator('#player').evaluate((p,t)=>p.currentTime=t,time);await page.waitForFunction(()=>!document.getElementById('player').seeking);};
 const nativePlay=()=>page.locator('#player').evaluate(p=>p.play());
-const pause=()=>page.locator('#player').evaluate(p=>p.pause());
+const pause=async()=>{if(!await page.locator('#player').evaluate(p=>p.paused))await page.locator('#playback-toggle').click();};
 const time=()=>page.locator('#player').evaluate(p=>p.currentTime);
 const advancePast=target=>page.waitForFunction(target=>document.getElementById('player').currentTime>target&&!document.getElementById('player').paused,target,{timeout:4000});
 const selected=()=>page.locator('#sentence-status').textContent();

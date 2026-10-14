@@ -3,6 +3,7 @@ import {detectSegments,validateSegments,parseSegments,formatTime,replaceSegment,
 import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount} from './course-data.js';
 import {verifyBookLayout} from './book-layout.js';
 import {connectPlaybackControls} from './playback-controls.js';
+import {observeAudioHealth} from './audio-health.js';
 import {APP_VERSION} from './updates.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
@@ -12,7 +13,13 @@ export async function connectStudy(api){
   course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.rate=Number(course.rate)||1;
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='',shadowMode='sentence';
   const player=$('player');
-  let appSeek=null,boundedPlay=false,reconnecting=false,recoveryPosition=null,lastMediaFailure=null;
+  let appSeek=null,boundedPlay=false,reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0;
+  const audioHealth=observeAudioHealth(player,{
+    onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent='Playback was interrupted. Tap Play to reconnect and continue.';}},
+    onStalled:()=>{needsReconnect=true;pauseAudio('stalled clock');$('play-status').textContent='Audio stopped advancing. Tap Play to reconnect and continue.';}
+  });
+  document.addEventListener('visibilitychange',()=>audioHealth.record(`page ${document.visibilityState}`));
+  function pauseAudio(reason){playRequest++;boundedPlay=false;audioHealth.expectPause(reason);player.pause();}
   function seekTo(time){
     if(Math.abs(player.currentTime-time)<.001)return;
     appSeek=time;player.currentTime=time;
@@ -20,6 +27,12 @@ export async function connectStudy(api){
   function freePlayback(){
     clearTimeout(boundaryTimer);clearTimeout(gapTimer);session={kind:'continuation'};
     player.loop=false;$('repeat').checked=false;$('play-status').textContent='';
+  }
+  function userSeekDuringReconnect(time){
+    if(!reconnecting)return;
+    if(recoveryPosition)recoveryPosition.time=time;
+    if(session?.kind==='sentence'||session?.kind==='preview'||(api.getProgress().step===4&&shadowMode==='sentence'))freePlayback();
+    reconnectSession=session;audioHealth.record('user seek during reconnect');
   }
   $('audio-select').insertAdjacentHTML('afterend',`<label class="field speed-field">Playback speed<select id="speed"><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>`);
   $('player').insertAdjacentHTML('afterend',`<section id="sentence-tools" hidden aria-label="Sentence timings"><div class="sentence-tool-actions"><button id="edit-sentence-mode" class="secondary" aria-expanded="false" aria-controls="sentence-timing-options">Edit sentence</button><button id="add-sentence-mode" class="secondary" aria-expanded="false" aria-controls="add-sentence-options">Add sentence</button></div><div id="sentence-timing-options" hidden>
@@ -46,12 +59,31 @@ export async function connectStudy(api){
   const dialogue=(id,includeRepeat=api.getProgress().step===1)=>preparedDialogue(matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id)),includeRepeat)||{start:0,end:player.duration};
   function saveCourse(){const snapshot=structuredClone(course);const attempt=courseQueue.then(()=>api.write('state','course',snapshot));courseQueue=attempt.catch(()=>{});return attempt.catch(error=>{api.notice('Could not save lesson setup. Check storage and export a backup.');throw error;});}
   function mapping(lesson){const settings=bookSettings();if(!settings)return null;if(settings.pages?.[lesson])return {...settings.pages[lesson],estimated:false};if(settings.pattern){const {baseLesson,basePage,span}=settings.pattern;const start=basePage+(lesson-baseLesson)*span;if(start<1)return null;const layout=settings.layout||{offset:Math.min(1,span-1),crop:fullCrop};return {start,end:start+span-1,englishPage:start+layout.offset,crop:layout.crop,estimated:true};}return null;}
-  function stopSession(){session=null;appSeek=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';player.pause();}
+  function stopSession(){session=null;appSeek=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');}
   function reviewTracks(){const p=api.getProgress(),n=Number($('review-count').value);return Array.from({length:Math.min(n,p.lesson-1)},(_,i)=>p.lesson-Math.min(n,p.lesson-1)+i).map(lesson=>({lesson,file:api.getLibrary().find(x=>x.id===p.tracks[lesson]&&x.kind==='audio')}));}
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
   function refreshSentences(){const spans=sentences();const count=dialogueCount(audioLesson(),spans.length);$('sentence-count-status').hidden=count.matches!==false;$('sentence-count-status').textContent=count.matches===false?`${count.actual} cuts · ${count.expected} numbered items expected in the book. Check for missing or merged items; extra splits can be intentional.`:'';segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];$('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';$('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;$('sentence-list').replaceChildren(...spans.map((span,i)=>{const button=document.createElement('button');button.textContent=String(i+1);button.className=i===segmentIndex?'selected':'';button.setAttribute('aria-label',`Sentence ${i+1}, ${formatTime(span.start)} to ${formatTime(span.end)}`);button.addEventListener('click',()=>{stopSession();segmentIndex=i;refreshSentences();});return button;}));$('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');refreshTimingEditor();}
   function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||($('playback-controls')||player).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');}
-  async function play(bounded=false){if(reconnecting&&!bounded)return;boundedPlay=bounded;try{await player.play();if(session?.kind==='review')$('play-status').textContent=`Reviewing lesson ${session.tracks[session.index].lesson}`;else if(!player.paused)$('play-status').textContent='';}catch(error){if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';else if(error.name!=='AbortError'){const failure=playbackFailure(player);if(failure)api.notice(failure.message);else if(!player.error)api.notice('Audio could not start in this browser. Try Playback options → Reconnect audio.');}}finally{boundedPlay=false;}}
+  async function play(bounded=false){
+    if(reconnecting&&!bounded)return false;
+    if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4&&shadowMode==='sentence')freePlayback();return reconnectAudio({resume:true});}
+    const request=++playRequest,source=player.getAttribute('src');let timer;boundedPlay=bounded;audioHealth.expectPlay();
+    try{
+      await Promise.race([player.play(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('The browser did not start playback within 12 seconds.')),12000);})]);
+      if(request!==playRequest||source!==player.getAttribute('src'))return false;
+      audioHealth.result(player.paused?'resolved, but paused':'playing');
+      if(player.paused){needsReconnect=true;audioHealth.expectPause('interrupted start');$('play-status').textContent='Playback was interrupted. Tap Play to reconnect and continue.';return false;}
+      needsReconnect=false;
+      if(session?.kind==='review')$('play-status').textContent=`Reviewing lesson ${session.tracks[session.index].lesson}`;else $('play-status').textContent='';
+      return true;
+    }catch(error){
+      if(request!==playRequest||source!==player.getAttribute('src'))return false;
+      audioHealth.result(`${error.name}: ${error.message}`);audioHealth.expectPause('start rejected');player.pause();
+      if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';
+      else{needsReconnect=true;const failure=playbackFailure(player);if(failure)api.notice(failure.message);$('play-status').textContent='Audio could not start. Tap Play to reconnect and continue.';}
+      return false;
+    }finally{clearTimeout(timer);if(request===playRequest)boundedPlay=false;}
+  }
   async function startSentence(){const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
   function refreshTimingEditor(force=false){
     const span=sentences()[segmentIndex];
@@ -154,12 +186,13 @@ export async function connectStudy(api){
     boundaryTimer=setTimeout(()=>{if(session!==active||player.paused)return;if(!player.seeking&&player.currentTime>=span.end-.03)finishRange().catch(error=>api.notice(error.message));else scheduleBoundary();},delay);
   }
   function checkBoundary(){
-    if(reconnecting||player.paused)return;
+    // A reconnect's play promise can remain pending even after its audio clock starts.
+    if(player.paused)return;
     const cap=routineDialogue();
     // Review remains bounded even if output recovery loses the normal session or seek events.
     if(cap&&player.currentTime>=cap.end){
       if(session&&!session.finishing&&session.span){finishRange().catch(error=>api.notice(error.message));}
-      else{player.pause();seekTo(cap.end);session=null;$('play-status').textContent='Dialogue complete. Restart review to continue the sequence.';}
+      else{pauseAudio('dialogue complete');seekTo(cap.end);session=null;$('play-status').textContent='Dialogue complete. Restart review to continue the sequence.';}
       return;
     }
     const span=session?.kind==='sentence'?sentences()[segmentIndex]:session?.span;
@@ -172,7 +205,7 @@ export async function connectStudy(api){
     }
   }
   function finishSentence(){
-    if(session?.kind!=='sentence'||session.finishing)return;session.finishing=true;clearTimeout(boundaryTimer);player.pause();
+    if(session?.kind!=='sentence'||session.finishing)return;session.finishing=true;clearTimeout(boundaryTimer);pauseAudio('sentence complete');
     const span=sentences()[segmentIndex];if(span)seekTo(span.end);
     $('play-status').textContent=`Your turn: repeat sentence ${segmentIndex+1}. Play continues; Repeat sentence replays it.`;
     if($('sentence-auto').checked&&segmentIndex<sentences().length-1){
@@ -191,14 +224,19 @@ export async function connectStudy(api){
   }
   async function beginRange(active,id){
     active.span=null;active.finishing=true;active.expectedId=id;appSeek=null;clearTimeout(boundaryTimer);
-    if(api.getActiveAudioId()!==id)await api.loadAudio(id);await readyPlayer();if(session!==active)return;
-    active.span=dialogue(id,active.kind==='blind');active.finishing=false;seekTo(active.span.start);
-    await play(true);scheduleBoundary();
+    const request=playRequest;
+    if(api.getActiveAudioId()!==id)await api.loadAudio(id);await readyPlayer();if(session!==active||request!==playRequest)return;
+    active.span=dialogue(id,active.kind==='blind');seekTo(active.span.start);active.finishing=false;
+    if(player.paused)await play(true);else audioHealth.record('rewind without stopping playback');
+    scheduleBoundary();
   }
   async function finishRange(){
     const active=session;if(!active||active.finishing)return;
     if(active.kind==='sentence'){finishSentence();return;}
-    active.finishing=true;clearTimeout(boundaryTimer);player.pause();
+    active.finishing=true;clearTimeout(boundaryTimer);
+    // A same-file repeat can seek while playing, keeping Android's output session alive.
+    const rewinding=active.kind==='blind'&&active.played<1||!['preview','review','blind'].includes(active.kind)&&$('repeat').checked;
+    if(!rewinding)pauseAudio('range complete');
     if(active.kind==='preview'){
       session=null;seekTo(active.span.end);$(active.statusId||'timing-edit-status').textContent=active.statusId?'Preview complete. Add sentence to save it.':'Preview complete. Save sentence to keep these timings.';
     }else if(active.kind==='blind'){
@@ -216,9 +254,9 @@ export async function connectStudy(api){
   player.addEventListener('playing',()=>{if(reconnecting)return;restoreRoutineSession();checkBoundary();scheduleBoundary();});
   player.addEventListener('ratechange',scheduleBoundary);
   player.addEventListener('seeking',()=>{
-    if(reconnecting)return;
     // App seeks start a bounded replay; user scrubbing releases its boundary.
     const ownSeek=appSeek!==null&&Math.abs(player.currentTime-appSeek)<.05;
+    if(reconnecting){if(!ownSeek)userSeekDuringReconnect(player.currentTime);return;}
     clearTimeout(boundaryTimer);
     if(!ownSeek){
       appSeek=null;
@@ -243,38 +281,46 @@ export async function connectStudy(api){
     scheduleBoundary();
   });
   player.addEventListener('ended',()=>finishRange().catch(error=>api.notice(error.message)));
-  $('start-review').addEventListener('click',async()=>{let active;try{stopSession();const tracks=reviewTracks().filter(x=>x.file);if(!tracks.length)return;active=session={kind:'review',tracks,index:0};player.loop=false;$('repeat').checked=false;$('play-status').textContent=`Reviewing lesson ${tracks[0].lesson}`;await beginRange(active,tracks[0].file.id);}catch(error){if(session===active){player.pause();api.notice(error.message);}}});
+  $('start-review').addEventListener('click',async()=>{let active;try{stopSession();const tracks=reviewTracks().filter(x=>x.file);if(!tracks.length)return;active=session={kind:'review',tracks,index:0};player.loop=false;$('repeat').checked=false;$('play-status').textContent=`Reviewing lesson ${tracks[0].lesson}`;await beginRange(active,tracks[0].file.id);}catch(error){if(session===active){pauseAudio('review failed');api.notice(error.message);}}});
   $('review-count').addEventListener('change',refreshReview);
-  $('start-blind').addEventListener('click',async()=>{let active;try{stopSession();const id=api.getProgress().tracks[api.getProgress().lesson];if(!id){api.notice('Import the recording for this lesson first.');return;}active=session={kind:'blind',played:0,id};player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Listen 1 of 2…';await beginRange(active,id);}catch(error){if(session===active){player.pause();api.notice(error.message);}}});
+  $('start-blind').addEventListener('click',async()=>{let active;try{stopSession();const id=api.getProgress().tracks[api.getProgress().lesson];if(!id){api.notice('Import the recording for this lesson first.');return;}active=session={kind:'blind',played:0,id};player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Listen 1 of 2…';await beginRange(active,id);}catch(error){if(session===active){pauseAudio('blind listening failed');api.notice(error.message);}}});
   $('sentence-play').addEventListener('click',startSentence);
   $('sentence-back').addEventListener('click',()=>{stopSession();segmentIndex=Math.max(0,segmentIndex-1);refreshSentences();});$('sentence-next').addEventListener('click',()=>{stopSession();segmentIndex=Math.min(sentences().length-1,segmentIndex+1);refreshSentences();});
   $('sentence-auto').addEventListener('change',()=>{if(!$('sentence-auto').checked)clearTimeout(gapTimer);});
   $('shadow-mode').addEventListener('change',()=>{stopSession();shadowMode=$('shadow-mode').value;$('sentence-controls').hidden=shadowMode!=='sentence';update();});
   $('speed').value=String(course.rate);player.playbackRate=course.rate;$('speed').addEventListener('change',()=>{course.rate=Number($('speed').value);player.playbackRate=course.rate;saveCourse().catch(()=>{});});
   $('repeat').addEventListener('change',()=>{if(session?.kind==='blind'||session?.kind==='review')stopSession();if(session?.kind==='sentence'){player.loop=false;$('repeat').checked=false;api.notice('Use Repeat sentence for sentence practice.');}});
-  $('mini-play').addEventListener('click',()=>{clearTimeout(gapTimer);if(!player.paused){player.pause();return;}play();});
+  $('mini-play').addEventListener('click',()=>{clearTimeout(gapTimer);if(!player.paused){pauseAudio('user paused');return;}play();});
   $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='sentence')startSentence();else{seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
-  const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onTick:()=>{mini();checkBoundary();}});
+  const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeekDuringReconnect,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
   player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure)lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};});
-  $('reconnect-audio').addEventListener('click',async()=>{
-    if(reconnecting||!player.getAttribute('src'))return;
+  async function reconnectAudio({resume}={}){
+    if(reconnecting||!player.getAttribute('src'))return false;
     const source=player.getAttribute('src'),active=session,id=api.getActiveAudioId();
-    const saved=recoveryPosition?.source===source?recoveryPosition:{source,time:player.currentTime,resume:!player.paused||!!player.error,rate:player.playbackRate,loop:player.loop};
-    recoveryPosition=saved;reconnecting=true;clearTimeout(boundaryTimer);clearTimeout(gapTimer);appSeek=null;
+    const saved=recoveryPosition?.source===source?recoveryPosition:{source,time:player.currentTime,resume:!player.paused||!!player.error||needsReconnect,rate:player.playbackRate,loop:player.loop};
+    recoveryPosition=saved;reconnectSession=active;reconnecting=true;clearTimeout(boundaryTimer);clearTimeout(gapTimer);appSeek=null;
     $('reconnect-audio').disabled=true;$('audio-reconnect-status').hidden=false;$('audio-reconnect-status').textContent='Reconnecting audio…';
     try{
-      player.pause();player.load();await readyPlayer();
-      if(player.getAttribute('src')!==source||api.getActiveAudioId()!==id||session!==active)return;
+      pauseAudio('reconnect');const request=playRequest;player.load();await readyPlayer();
+      if(player.getAttribute('src')!==source||api.getActiveAudioId()!==id||session!==reconnectSession||request!==playRequest){$('audio-reconnect-status').textContent='Audio reconnect canceled.';return false;}
       player.playbackRate=saved.rate;player.loop=saved.loop;player.muted=false;player.volume=1;
       const cap=routineDialogue();seekTo(Math.min(saved.time,player.duration,cap?.end??Infinity));restoreRoutineSession();
-      if(saved.resume)await play(true);
-      recoveryPosition=null;$('audio-reconnect-status').textContent='Audio reconnected at your saved position. If still silent, check the BOOX Bluetooth media output.';
-    }catch(error){if(player.getAttribute('src')===source)$('audio-reconnect-status').textContent=error.message;}
-    finally{reconnecting=false;$('reconnect-audio').disabled=false;playbackControls.refresh();scheduleBoundary();}
-  });
+      needsReconnect=false;recoveryPosition=null;
+      const resumed=resume??saved.resume;
+      if(resumed&&!await play(true)){
+        const completed=player.getAttribute('src')===source&&!needsReconnect&&player.paused&&(session?.finishing||!session&&cap&&player.currentTime>=cap.end);
+        $('audio-reconnect-status').textContent=completed?'Audio reconnected. Playback reached its stopping point.':'Audio was reloaded, but playback did not start. Tap Play to retry.';
+        return !!completed;
+      }
+      $('audio-reconnect-status').textContent='Audio reconnected at your saved position. If still silent, check the device’s Bluetooth media output.';
+      return true;
+    }catch(error){if(player.getAttribute('src')===source){needsReconnect=true;$('audio-reconnect-status').textContent=error.message;}return false;}
+    finally{reconnecting=false;reconnectSession=null;$('reconnect-audio').disabled=false;playbackControls.refresh();scheduleBoundary();}
+  }
+  $('reconnect-audio').addEventListener('click',()=>reconnectAudio());
   $('copy-audio-details').addEventListener('click',async()=>{
     const lesson=audioLesson(),file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());
-    const details=[`App: ${APP_VERSION}`,`Browser: ${navigator.userAgent}`,`Study: lesson ${api.getProgress().lesson}, step ${api.getProgress().step+1}`,`Recording: ${file?.name||'None'}`,`Prepared lesson: ${lesson?.number||'Not matched'}`,`Dialogue end: ${routineDialogue()?.end??'No whole-dialogue limit in this mode'}`,`Position: ${player.currentTime}; duration: ${player.duration}`,`Paused: ${player.paused}; seeking: ${player.seeking}; session: ${session?.kind||'None'}`,`Muted: ${player.muted}; volume: ${player.volume}`,`Current audio error: ${player.error?`${player.error.code}; ${player.error.message||''}`:'None'}`,`Last audio error: ${lastMediaFailure?`${lastMediaFailure.code}; recording ${lastMediaFailure.recording}; ${lastMediaFailure.detail}`:'None recorded'}`].join('\n');
+    const details=[`App: ${APP_VERSION}`,`Browser: ${navigator.userAgent}`,`Study: lesson ${api.getProgress().lesson}, step ${api.getProgress().step+1}`,`Recording: ${file?.name||'None'}`,`Prepared lesson: ${lesson?.number||'Not matched'}`,`Dialogue end: ${routineDialogue()?.end??'No whole-dialogue limit in this mode'}`,`Position: ${player.currentTime}; duration: ${player.duration}`,`Paused: ${player.paused}; seeking: ${player.seeking}; session: ${session?.kind||'None'}`,`Listen completed: ${session?.kind==='blind'?session.played:'N/A'}; finishing: ${session?.finishing??false}`,`Ready state: ${player.readyState}; network state: ${player.networkState}; visible: ${document.visibilityState}`,`Reconnect needed: ${needsReconnect}; reconnecting: ${reconnecting}`,`Muted: ${player.muted}; volume: ${player.volume}`,`Current audio error: ${player.error?`${player.error.code}; ${player.error.message||''}`:'None'}`,`Last audio error: ${lastMediaFailure?`${lastMediaFailure.code}; recording ${lastMediaFailure.recording}; ${lastMediaFailure.detail}`:'None recorded'}`,audioHealth.details()].join('\n');
     try{await navigator.clipboard.writeText(details);$('audio-reconnect-status').hidden=false;$('audio-reconnect-status').textContent='Audio details copied. Paste them into the support chat.';}
     catch{$('audio-details').textContent=details;$('audio-details').hidden=false;}
   });
@@ -306,7 +352,7 @@ export async function connectStudy(api){
   $('use-prepared').addEventListener('click',async()=>{stopSession();course.segmentMode[api.getActiveAudioId()]='prepared';await saveCourse();segmentIndex=0;refreshSentences();});
   $('reveal-german').addEventListener('click',async()=>{recallRevealed=!recallRevealed;$('reveal-german').textContent=recallRevealed?'Hide German again':'Show German to check';await renderBook();});
   player.addEventListener('emptied',()=>{appSeek=null;clearTimeout(boundaryTimer);});
-  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;appSeek=null;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=0;player.playbackRate=course.rate;refreshSentences();playbackControls.refresh();});
+  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;needsReconnect=false;appSeek=null;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=0;player.playbackRate=course.rate;refreshSentences();playbackControls.refresh();});
   async function renderBook(){
     const recall=api.getProgress().step===7&&!recallRevealed;
     const plan=preparedPlan(recall);
