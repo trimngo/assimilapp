@@ -10,8 +10,8 @@ const browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePa
 const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 const menu=async tab=>{await page.locator('#app-menu summary').click();await page.locator(`[data-tab=${tab}]`).click();};
-const seek=async time=>{await page.locator('#player').evaluate((p,t)=>p.currentTime=t,time);await page.waitForFunction(()=>!document.getElementById('player').seeking);};
-const nativePlay=()=>page.locator('#player').evaluate(p=>p.play());
+const seek=async time=>{await page.locator('#playback-position').evaluate((input,t)=>{input.value=String(t);input.dispatchEvent(new Event('input',{bubbles:true}));},time);await page.waitForFunction(()=>!document.getElementById('player').seeking);};
+const nativePlay=()=>page.locator('#playback-toggle').click();
 const pause=async()=>{if(!await page.locator('#player').evaluate(p=>p.paused))await page.locator('#playback-toggle').click();};
 const time=()=>page.locator('#player').evaluate(p=>p.currentTime);
 const advancePast=target=>page.waitForFunction(target=>document.getElementById('player').currentTime>target&&!document.getElementById('player').paused,target,{timeout:4000});
@@ -22,7 +22,7 @@ try {
 await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8765/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);
 assert.equal(await page.locator('#app-version').textContent(),`v${JSON.parse(fs.readFileSync('dist/version.json')).version}`);
 await menu('library');await page.locator('#file-input').setInputFiles(file);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('1 stored'));
-await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();await page.locator('#shadow-mode').selectOption('sentence');await assertSelected(1);
+await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await page.locator('#shadow-mode').selectOption('sentence');await assertSelected(1);
 await page.waitForFunction(()=>document.getElementById('player').readyState>=1);
 await page.locator('#edit-sentence-mode').click();
 // Reproduce an oversized first cut, shorten it, then reclaim the gap for sentence 2.
@@ -57,15 +57,15 @@ console.log('Preview bounds only its draft cut; scrubbing also releases Preview 
 // Mini-player parity.
 await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));await page.waitForFunction(()=>!document.getElementById('mini-player').hidden);
 await page.locator('#mini-repeat').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
-await page.locator('#mini-play').click();await advancePast(end+.8);await assertSelected(2);await pause();
-console.log('Compact Play and Repeat use the same free/bounded behavior.');
+await page.locator('#mini-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));await assertSelected(2);
+console.log('Compact Play and Repeat keep the selected sentence bounded; advanced Play remains free.');
 // Opt-in sequential automatic continuation remains; scrubbing cancels the queued gap.
 await page.locator('#sentence-controls > details:has(#sentence-auto) > summary').click();await page.locator('#sentence-auto').check();
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
 await seek(0);await page.waitForTimeout(1500);await assertSelected(2);assert.equal(await page.locator('#player').evaluate(p=>p.paused),true);
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('sentence-status').textContent.startsWith('Sentence 3')&&!document.getElementById('player').paused);await pause();await page.locator('#sentence-auto').uncheck();
 console.log('Scrubbing cancels queued automatic continuation; explicit automatic practice still advances sequentially.');
-await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-mode',{state:'attached'});await page.locator('#shadow-mode').selectOption('sentence');
+await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-mode',{state:'attached'});if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await page.locator('#shadow-mode').selectOption('sentence');
 await page.locator('#sentence-next').click();await page.locator('#edit-sentence-mode').click();
 assert.equal(Number(await page.locator('#timing-start').inputValue()),earlier);assert.equal(Number(await page.locator('#timing-end').inputValue()),end);assert.equal(await page.locator('#lesson').inputValue(),'10');assert.deepEqual(errors,[]);
 console.log('Corrected timings, imported MP3 and lesson progress survive offline restart.');

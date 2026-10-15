@@ -16,7 +16,7 @@ const steps = [
   ['Blind listening','Listen to the new lesson twice without looking at the book.','Each listen includes both recorded readings when present. Playback stops after the second listen.'],
   ['Understand','Open the book and read the German, English translation, and notes.',''],
   ['Read along','Play the lesson while following the German text in your book.',''],
-  ['Cumulative shadowing','Speak along with the audio: practice each new sentence with text, then without. Then return to the beginning and practice through the current sentence, with text and without.','Keep adding sentences until you can speak along with the whole dialogue without text. Audio plays during every pass.'],
+  ['Shadowing','Speak along with the audio, first with text, then without. Build up to the whole dialogue.',''],
   ['Exercises','Do the lesson’s exercises.','The lesson pages and full recording, including exercises, are available below.'],
   ['Write','Copy 4–5 sentences by hand, or write them from the audio as dictation.','Use the lesson pages or the audio below.'],
   ['Recall','Look at the English and try to say the German from memory.','']
