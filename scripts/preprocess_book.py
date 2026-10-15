@@ -93,6 +93,7 @@ def build(pdf_paths, output, export_dir=None, alignment_text=None):
 
     previous = json.loads(output.read_text()) if output.exists() else {}
     old_audio = {l["number"]: l.get("audio") for l in previous.get("lessons", [])}
+    old_excerpts = {l["number"]: l.get("sentenceExcerpts") for l in previous.get("lessons", [])}
     lessons = []
     for number, start in enumerate(starts, 1):
         end = starts[number] - 1 if number < 100 else 572
@@ -121,6 +122,8 @@ def build(pdf_paths, output, export_dir=None, alignment_text=None):
                   "expectedAudioFilename": f"L{number:03d}-LESSON.mp3"}
         if old_audio.get(number):
             lesson["audio"] = old_audio[number]
+        if old_excerpts.get(number):
+            lesson["sentenceExcerpts"] = old_excerpts[number]
         lessons.append(lesson)
     index = {"schemaVersion": 1, "courseId": "assimil-german-supplied-scan-614",
              "book": {"title": "Assimil German", "pageCount": 614, "printedPageOffset": 8,

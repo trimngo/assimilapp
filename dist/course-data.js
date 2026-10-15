@@ -33,13 +33,35 @@ export function pageCrop(bounds) {
 export function lessonPages(index, library, number, recall = false) {
   const lesson = preparedLesson(index, number);
   if (!lesson) return null;
+  return pageEntries(index,library,recall?lesson.englishRecall:lesson.studyPages);
+}
+
+function pageEntries(index,library,refs){
   const sources = new Map(library.filter(file => file.kind === 'pdf')
     .flatMap(file => {const source=matchedSource(index,file);return source ? [[source.id,file]] : [];}));
-  const refs = recall ? lesson.englishRecall : lesson.studyPages;
   const combined=library.find(file=>matchedCombinedBook(index,file));
   return refs.map(ref => ({file:combined||sources.get(ref.sourceId)||null, sourceId:ref.sourceId,
     page:combined?ref.globalPage:ref.sourcePage, globalPage:ref.globalPage, crop:pageCrop(ref.crop),
     label:`Book page ${ref.globalPage-index.book.printedPageOffset}`}));
+}
+
+export function sentencePages(index,library,number,items){
+  const lesson=preparedLesson(index,number);
+  return pageEntries(index,library,(lesson?.sentenceExcerpts||[]).filter(ref=>items.includes(ref.number)));
+}
+
+export function sentenceBookItems(lesson,spans,custom=false){
+  const prepared=preparedSentences(lesson),segments=lesson?.audio?.sentenceAlignment?.sentenceSegments||[];
+  return spans.map((span,i)=>{
+    // The book numbering stays stable when timing edits retain its item count.
+    if(custom&&spans.length===lesson?.numberedLineCount)return [i+1];
+    if(!custom)return segments[i]?.bookItems||[];
+    const items=prepared.flatMap((cut,j)=>{
+      const overlap=Math.min(span.end,cut.end)-Math.max(span.start,cut.start);
+      return overlap>Math.min(span.end-span.start,cut.end-cut.start)*.15?segments[j].bookItems||[]:[];
+    });
+    return [...new Set(items)];
+  });
 }
 
 export function preparedSentences(lesson) {

@@ -1,6 +1,6 @@
 import {BookReader,validateCrop} from './pdf-reader.js';
 import {detectSegments,validateSegments,parseSegments,formatTime,replaceSegment,insertSegment,splitSegment,playbackFailure} from './audio-tools.js';
-import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount} from './course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount,sentenceBookItems,sentencePages} from './course-data.js';
 import {verifyBookLayout} from './book-layout.js';
 import {connectPlaybackControls} from './playback-controls.js';
 import {observeAudioHealth} from './audio-health.js';
@@ -47,9 +47,11 @@ export async function connectStudy(api){
   $('book-card').insertAdjacentHTML('beforeend',`<details id="manual-book"><summary>Book options</summary><button id="prepared-book" class="text-button">Use automatically matched pages</button><div class="reader-tools"><label class="field">Book<select id="book-select"></select></label><label class="check"><input id="spread" type="checkbox" checked> Two-page view in landscape</label><button id="configure-pages" class="text-button">Set lesson pages</button></div><details id="page-settings"><summary>Lesson pages & English area</summary><p class="note">Use PDF page numbers, which may differ from printed book numbers. Set a lesson once; later lessons can follow the same page pattern.</p><div class="page-fields"><label class="field">First page<input id="page-start" type="number" min="1" value="1"></label><label class="field">Last page<input id="page-end" type="number" min="1" value="2"></label><label class="field">English page<input id="english-page" type="number" min="1" value="2"></label></div><label class="check"><input id="page-pattern" type="checkbox"> Estimate other lessons using this page count</label><div class="backup-actions"><button id="preview-pages" class="secondary">Preview pages</button><button id="save-pages" class="primary">Save lesson pages</button></div><hr><p class="note">Choose the English page above, then select only the translation area. This works with scanned pages and needs no text recognition.</p><div class="backup-actions"><button id="select-english" class="secondary">Select English area</button><button id="reset-crop" class="secondary">Use whole English page</button><button id="save-crop" class="primary" disabled>Save English area</button></div><label class="check"><input id="reuse-crop" type="checkbox" checked> Use this English layout for other lessons</label><p id="mapping-status" class="note" role="status"></p></details></details><div id="recall-controls" hidden><button id="reveal-german" class="secondary">Show German to check</button><p class="note">Try saying the German before revealing the full lesson.</p></div><p id="reader-status" class="note" role="status"></p><div id="pdf-pages" class="pdf-pages"></div>`);
   document.body.insertAdjacentHTML('beforeend',`<div id="mini-player" hidden><button id="mini-play" class="primary" aria-label="Play recording">▶</button><div><span id="mini-title"></span><small id="mini-time">0:00</small></div><button id="mini-repeat" class="secondary" aria-label="Repeat current sentence or recording">↺</button></div>`);
   $('floating-ui').append($('mini-player'));
+  $('audio-options').insertAdjacentElement('afterend',$('sentence-list'));
+  $('sentence-list').hidden=true;$('sentence-list').setAttribute('role','list');$('sentence-list').setAttribute('aria-label','Shadowing sentences');
   $('book-card').append($('manual-book'));
   const reader=new BookReader($('pdf-pages'),$('reader-status'));
-  let recallRevealed=false,timingKey='',timingSaved='',sentenceToolMode='edit',sentenceToolsOpen=false;
+  let recallRevealed=false,timingKey='',timingSaved='',sentenceToolMode='edit',sentenceToolsOpen=false,sentenceRowsKey='',sentenceRender=0;
   const getBook=()=>api.getLibrary().find(x=>x.id===course.activeBook&&x.kind==='pdf')||api.getLibrary().find(x=>x.kind==='pdf');
   const bookSettings=()=>{const book=getBook();if(!book)return null;return course.books[book.id] ||= {pages:{}};};
   const audioLesson=()=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===api.getActiveAudioId()));
@@ -62,8 +64,62 @@ export async function connectStudy(api){
   function stopSession(){session=null;appSeek=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');}
   function reviewTracks(){const p=api.getProgress(),n=Number($('review-count').value);return Array.from({length:Math.min(n,p.lesson-1)},(_,i)=>p.lesson-Math.min(n,p.lesson-1)+i).map(lesson=>({lesson,file:api.getLibrary().find(x=>x.id===p.tracks[lesson]&&x.kind==='audio')}));}
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
-  function refreshSentences(){const spans=sentences();const count=dialogueCount(audioLesson(),spans.length);$('sentence-count-status').hidden=count.matches!==false;$('sentence-count-status').textContent=count.matches===false?`${count.actual} cuts · ${count.expected} numbered items expected in the book. Check for missing or merged items; extra splits can be intentional.`:'';segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];$('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';$('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;$('sentence-list').replaceChildren(...spans.map((span,i)=>{const button=document.createElement('button');button.textContent=String(i+1);button.className=i===segmentIndex?'selected':'';button.setAttribute('aria-label',`Sentence ${i+1}, ${formatTime(span.start)} to ${formatTime(span.end)}`);button.addEventListener('click',()=>{stopSession();segmentIndex=i;refreshSentences();});return button;}));$('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');refreshTimingEditor();}
-  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||($('playback-controls')||player).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');}
+  function refreshSentences(){
+    const spans=sentences(),count=dialogueCount(audioLesson(),spans.length);
+    $('sentence-count-status').hidden=count.matches!==false;
+    $('sentence-count-status').textContent=count.matches===false?`${count.actual} cuts · ${count.expected} numbered items expected in the book. Check for missing or merged items; extra splits can be intentional.`:'';
+    segmentIndex=Math.min(segmentIndex,Math.max(0,spans.length-1));const current=spans[segmentIndex];
+    $('sentence-status').textContent=!current&&$('detect-sentences').disabled?'Finding pauses on this device…':current?`Sentence ${segmentIndex+1} of ${spans.length}${current.needsReview?' · Draft cut: check where it pauses.':course.segmentMode[api.getActiveAudioId()]!=='custom'&&audioLesson()?.audio.sentenceAlignment.status==='needs-review'?' · Prepared cuts need a listening check.':''}`:'No prepared cuts for this recording. Pause manually, or add timings in Practice options.';
+    $('sentence-play').disabled=!current;$('sentence-back').disabled=!current||segmentIndex===0;$('sentence-next').disabled=!current||segmentIndex===spans.length-1;
+    refreshSentenceRows(spans);
+    $('use-prepared').hidden=!audioLesson();$('use-saved-timings').hidden=!audioLesson()||!course.segments[api.getActiveAudioId()]||course.segmentMode[api.getActiveAudioId()]==='custom';$('detect-sentences').hidden=!!audioLesson();
+    if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');
+    refreshTimingEditor();
+  }
+  function selectSentence(index){stopSession();segmentIndex=index;refreshSentences();}
+  function refreshSentenceButtons(){
+    for(const row of $('sentence-list').children){
+      const index=Number(row.dataset.index),selected=index===segmentIndex;
+      row.classList.toggle('selected',selected);row.querySelector('.sentence-select').setAttribute('aria-pressed',String(selected));
+      const button=row.querySelector('.sentence-row-play'),label=selected&&!player.paused?'Pause':'Play';
+      if(button.textContent!==label)button.textContent=label;
+      button.setAttribute('aria-label',`${label} from sentence ${index+1}`);
+    }
+  }
+  function refreshSentenceRows(spans){
+    const list=$('sentence-list'),visible=api.getProgress().step===4&&shadowMode==='sentence';list.hidden=!visible;
+    if(!visible){sentenceRowsKey='';sentenceRender++;return;}
+    const id=api.getActiveAudioId(),lesson=audioLesson(),custom=course.segmentMode[id]==='custom',library=api.getLibrary();
+    const key=JSON.stringify([id,spans,custom,library.filter(file=>file.kind==='pdf').map(file=>[file.id,file.verifiedBookLayout])]);
+    if(key===sentenceRowsKey){refreshSentenceButtons();return;}
+    sentenceRowsKey=key;const ticket=++sentenceRender,groups=[],items=sentenceBookItems(lesson,spans,custom);
+    list.replaceChildren(...spans.map((span,i)=>{
+      const row=document.createElement('div');row.className='sentence-row';row.dataset.index=i;row.setAttribute('role','listitem');
+      const heading=document.createElement('button');heading.type='button';heading.className='sentence-select';
+      const bookLabel=items[i].length&&(items[i].length!==1||items[i][0]!==i+1)?` · Book item${items[i].length>1?'s':''} ${items[i].join(', ')}`:'';
+      heading.textContent=`Sentence ${i+1}${bookLabel}`;heading.addEventListener('click',()=>selectSentence(i));
+      const text=document.createElement('div');text.className='sentence-text';text.lang='de';
+      const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i]);
+      const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':'No book text matched to this cut. Use the lesson pages below.';text.append(note);
+      if(entries.length)groups.push({entries,container:text,note});
+      const actions=document.createElement('div');actions.className='sentence-row-actions';
+      const playButton=document.createElement('button');playButton.type='button';playButton.className='secondary sentence-row-play';playButton.textContent='Play';playButton.title='Play from this sentence and continue';
+      playButton.addEventListener('click',()=>{if(segmentIndex===i&&!player.paused)pauseAudio('user paused');else playFromSentence(i);});
+      const repeatButton=document.createElement('button');repeatButton.type='button';repeatButton.className='secondary sentence-row-repeat';repeatButton.textContent='Repeat';repeatButton.title='Replay this sentence and pause at its end';repeatButton.setAttribute('aria-label',`Repeat sentence ${i+1}`);
+      repeatButton.addEventListener('click',()=>{selectSentence(i);startSentence();});
+      actions.append(playButton,repeatButton);row.append(heading,text,actions);return row;
+    }));
+    refreshSentenceButtons();
+    const current=()=>ticket===sentenceRender&&!list.hidden;
+    reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. Use the lesson pages below.';});
+  }
+  async function playFromSentence(index){
+    selectSentence(index);const span=sentences()[index];if(!span)return;
+    freePlayback();const active=session,id=api.getActiveAudioId();
+    try{await readyPlayer();if(session!==active||api.getActiveAudioId()!==id)return;seekTo(span.start);await play();}
+    catch(error){if(session===active){stopSession();api.notice(error.message);}}
+  }
+  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||($('playback-controls')||player).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');refreshSentenceButtons();}
   async function play(bounded=false){
     if(reconnecting&&!bounded)return false;
     if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4&&shadowMode==='sentence')freePlayback();return reconnectAudio({resume:true});}

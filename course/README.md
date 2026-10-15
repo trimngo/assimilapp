@@ -12,6 +12,7 @@ The completed batch includes 100 recording matches, 100 dialogue ranges, and 1,1
 - The three original PDFs contain a usable text layer. Their hashes identify the exact scan for which the reviewed coordinates apply.
 - There are 208 English translation crops. All were visually checked; they exclude German notes, exercise answers, and unrelated cartoon captions.
 - Each lesson has German dialogue regions and study page regions. Exercises and review translations that continue above the next lesson heading are included as cropped shared pages.
+- `sentenceExcerpts` stores 1,161 coordinate-only crops, one per numbered dialogue item. Boundaries use the scan's actual whitespace because its OCR boxes sometimes overlap adjacent lines. The app displays these excerpts from the user's saved PDF in Shadowing; no transcript or image is included in the hosted files.
 - Lesson 57 crosses the split between the first and second PDFs. References include both global and source-local page numbers.
 - Review lessons use their review dialogue, with translations sometimes on later or shared pages. Lesson 100 ends before the appendix. The uploaded files do not include the later glossaries listed in the contents.
 
@@ -37,6 +38,7 @@ Install Python and FFmpeg, then install the separate preprocessing dependencies:
 python -m pip install -r scripts/requirements-preprocess.txt
 python scripts/preprocess_book.py 001-300.pdf 301-600.pdf 601-614.pdf \
   --alignment-text work/numbered-dialogue.json
+python scripts/prepare_sentence_excerpts.py 001-300.pdf 301-600.pdf 601-614.pdf
 python scripts/preprocess_audio.py /path/to/audio-folder
 python scripts/check_course.py
 node scripts/prepare_combined_layout.mjs 001-300.pdf 301-600.pdf 601-614.pdf

@@ -1,9 +1,33 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount} from '../dist/course-data.js';
+import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSentences,preparedDialogue,dialogueCount,sentenceBookItems,sentencePages} from '../dist/course-data.js';
 const index=JSON.parse(readFileSync(new URL('../dist/course-index.json',import.meta.url)));
 const books=index.book.sources.map(source=>({id:source.id,kind:'pdf',name:source.filename,size:source.bytes,sha256:source.sha256}));
+
+test('every numbered dialogue item has a valid private-book excerpt, in split and full books',()=>{
+  const full={id:'full',kind:'pdf',verifiedBookLayout:index.book.combinedLayoutSignature};
+  for(const lesson of index.lessons){
+    const refs=lesson.sentenceExcerpts;assert.deepEqual(refs.map(ref=>ref.number),Array.from({length:lesson.numberedLineCount},(_,i)=>i+1));
+    for(const ref of refs){const [x0,y0,x1,y1]=ref.crop;assert(x0>=0&&y0>=0&&x1<=1&&y1<=1&&x0<x1&&y0<y1);assert(!('text' in ref));}
+    const items=refs.map(ref=>ref.number),split=sentencePages(index,books,lesson.number,items),combined=sentencePages(index,[full],lesson.number,items);
+    assert(split.every(page=>page.file));assert(combined.every(page=>page.file.id==='full'&&page.page===page.globalPage));
+    assert.deepEqual(combined.map(page=>page.crop),split.map(page=>page.crop));
+  }
+  const partial=sentencePages(index,[books[0]],58,index.lessons[57].sentenceExcerpts.map(ref=>ref.number));assert(partial.every(page=>!page.file&&page.sourceId==='301-600.pdf'));
+});
+
+test('sentence text follows book items across prepared merges, custom corrections and splits',()=>{
+  const lesson=index.lessons[10],prepared=preparedSentences(lesson);
+  assert.deepEqual(sentenceBookItems(lesson,prepared),Array.from({length:8},(_,i)=>[i+1]));
+  const legacy=[...prepared.slice(0,6),{start:prepared[6].start,end:prepared[7].end}];
+  assert.deepEqual(sentenceBookItems(lesson,legacy,true).at(-1),[7,8]);
+  const split=[{start:prepared[0].start,end:(prepared[0].start+prepared[0].end)/2},{start:(prepared[0].start+prepared[0].end)/2,end:prepared[0].end},...prepared.slice(1)];
+  assert.deepEqual(sentenceBookItems(lesson,split,true).slice(0,3),[[1],[1],[2]]);
+  assert.deepEqual(sentenceBookItems(lesson,prepared.map((cut,i)=>({...cut,start:cut.start+(i===1?-.25:0)})),true),Array.from({length:8},(_,i)=>[i+1]));
+  assert.deepEqual(sentenceBookItems(lesson,[{start:0,end:1}],true),[[]]);assert.deepEqual(sentenceBookItems(null,[{start:0,end:1}]),[[]]);
+  const merged=index.lessons.find(l=>l.audio.sentenceAlignment.sentenceSegments.some(s=>s.bookItems.length>1));assert(sentenceBookItems(merged,preparedSentences(merged)).some(items=>items.length>1));
+});
 
 test('prepared mappings require matching content, including renamed files',()=>{
   const source=books[0];assert.equal(matchedSource(index,{...source,name:'renamed.pdf'}).id,source.id);

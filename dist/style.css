@@ -64,3 +64,15 @@ html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
   body[data-view="study"] .shell{max-width:none;padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
   .pdf-pages{column-gap:8px}
 }
+
+/* Sentence excerpts come from the locally stored scan; actions follow each excerpt. */
+.sentence-list{display:grid;gap:0;margin:16px 0}
+.sentence-row{min-width:0;padding:10px 10px 16px;border-left:3px solid transparent;border-bottom:1px solid var(--line)}
+.sentence-row.selected{border-left-color:var(--ink)}
+.sentence-list .sentence-select{display:block;border:0;background:none;color:var(--muted);min-height:36px;padding:4px 0;font-size:13px;text-align:left}
+.sentence-list .sentence-select[aria-pressed="true"]{color:var(--ink);font-weight:650}
+.sentence-select[aria-pressed="true"]::after{content:" · Selected"}
+.sentence-text{min-width:0}
+.sentence-text canvas{display:block;width:min(100%,var(--excerpt-width));max-width:100%;height:auto;background:white;border-radius:3px;margin:6px 0}
+.sentence-row-actions{display:flex;gap:8px;margin-top:10px}
+.sentence-row-actions button{min-width:90px;min-height:44px;padding:9px 14px;font-size:15px}

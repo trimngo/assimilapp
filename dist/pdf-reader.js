@@ -21,6 +21,30 @@ export class BookReader {
     return entry.promise;
   }
   async open(file,id){this.document=await this.load(file,id);this.fileId=id;return this.document;}
+  async renderExcerpts(groups,resolveFile,isCurrent){
+    // Render each source page once, then crop its sentences locally. No OCR or downloads.
+    const pages=new Map();
+    try{
+      for(const group of groups){
+        for(const entry of group.entries){
+          if(!isCurrent())return;
+          if(!entry.file){const note=document.createElement('p');note.className='note';note.textContent=`Import ${entry.sourceId} to see this sentence.`;group.container.append(note);continue;}
+          const key=`${entry.file.id}:${entry.page}`;
+          if(!pages.has(key)){
+            const doc=await this.load(await resolveFile(entry.file),entry.file.id);if(!isCurrent())return;
+            const page=await doc.getPage(entry.page),base=page.getViewport({scale:1}),viewport=page.getViewport({scale:2});
+            const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+            pages.set(key,{canvas,base});await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+          }
+          if(!isCurrent())return;
+          const {canvas,base}=pages.get(key),crop=validateCrop(entry.crop),excerpt=document.createElement('canvas');
+          excerpt.width=Math.max(1,Math.round(canvas.width*crop.w));excerpt.height=Math.max(1,Math.round(canvas.height*crop.h));
+          excerpt.getContext('2d').drawImage(canvas,canvas.width*crop.x,canvas.height*crop.y,canvas.width*crop.w,canvas.height*crop.h,0,0,excerpt.width,excerpt.height);
+          excerpt.style.setProperty('--excerpt-width',`${base.width*crop.w*1.1}px`);excerpt.setAttribute('role','img');excerpt.setAttribute('aria-label',`German dialogue text · ${entry.label}`);excerpt.dataset.globalPage=entry.globalPage;group.container.append(excerpt);
+        }
+      }
+    }finally{for(const {canvas} of pages.values())canvas.width=canvas.height=0;}
+  }
   async render(pageNumbers,{crop=null,select=null}={}){
     if(!this.document)return;
     return this.renderEntries(pageNumbers.map(page=>({page,document:this.document,crop,label:`PDF page ${page}`})),null,{select,english:!!crop});

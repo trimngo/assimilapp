@@ -9,7 +9,7 @@ def label_number(value):
     return int(value) if value.isdigit() else None
 
 
-def extract_units(words, text_lines, expected, top, bottom, lesson, corrections=None):
+def extract_units(words, text_lines, expected, top, bottom, lesson, corrections=None, with_boxes=False):
     candidates = [(label_number(w[4]), w) for w in words
                   if label_number(w[4]) in expected and 20 < w[0] < 160
                   and w[3] - w[1] > 15 and top - 1 <= w[1] < bottom
@@ -44,7 +44,7 @@ def extract_units(words, text_lines, expected, top, bottom, lesson, corrections=
         center = (word[1] + word[3]) / 2
         following = [(w[1] + w[3]) / 2 for n, w in selected.items() if n > number]
         end = min(following) - 12 if following else tail + 2
-        parts = []
+        parts, boxes = [], []
         for line in sorted(body, key=lambda item: (item["bbox"][1], item["bbox"][0])):
             row = (line["bbox"][1] + line["bbox"][3]) / 2
             if center - 12 <= row < end:
@@ -59,6 +59,12 @@ def extract_units(words, text_lines, expected, top, bottom, lesson, corrections=
                 value = re.sub(r"[®@►□]", "", value).strip()
                 if value and value != "***":
                     parts.append(value)
+                    boxes.append(line["bbox"])
         text = " ".join(parts)
-        output.append({"line": number, "text": text, **({"needsReview": True} if not text else {})})
+        item = {"line": number, "text": text, **({"needsReview": True} if not text else {})}
+        if with_boxes and boxes:
+            item["box"] = [min(b[0] for b in boxes) - 3, max(top, min(b[1] for b in boxes) - 2),
+                           max(b[2] for b in boxes) + 3, min(bottom, max(b[3] for b in boxes) + 2)]
+            item["rows"] = boxes
+        output.append(item)
     return output
