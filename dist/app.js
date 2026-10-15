@@ -16,9 +16,9 @@ const steps = [
   ['Blind listening','Listen to the new lesson twice without looking at the book.','Each listen includes both recorded readings when present. Playback stops after the second listen.'],
   ['Understand','Open the book and read the German, English translation, and notes.',''],
   ['Read along','Play the lesson while following the German text in your book.',''],
-  ['Shadowing','Listen to one sentence, then repeat it aloud. After that, speak with the audio—with the text, then without.',''],
-  ['Read aloud & exercises','Read the German text aloud, then complete the lesson’s exercises.',''],
-  ['Write','Keep your book open and copy the sentences by hand on paper.',''],
+  ['Cumulative shadowing','Speak along with the audio: practice each new sentence with text, then without. Then return to the beginning and practice through the current sentence, with text and without.','Keep adding sentences until you can speak along with the whole dialogue without text. Audio plays during every pass.'],
+  ['Exercises','Do the lesson’s exercises.','The lesson pages and full recording, including exercises, are available below.'],
+  ['Write','Copy 4–5 sentences by hand, or write them from the audio as dictation.','Use the lesson pages or the audio below.'],
   ['Recall','Look at the English and try to say the German from memory.','']
 ];
 let study,stepTimer,progressView,finishingLesson=false;

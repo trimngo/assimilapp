@@ -10,7 +10,7 @@ class Media extends EventTarget{
 class Context extends EventTarget{
   constructor(){super();Object.assign(this,{state:'suspended',sampleRate:48000,currentTime:0,destination:{}});}
   createGain(){return {gain:{value:1},connect(){}};}
-  createBufferSource(){return {connect(){},disconnect(){},stop(){},start(time,offset){this.offset=offset;}};}
+  createBufferSource(){return {connect(){},disconnect(){},stop(time){this.stopAt=time;},start(time,offset){this.offset=offset;}};}
   async resume(){this.state='running';this.dispatchEvent(new Event('statechange'));}
   async close(){this.state='closed';this.dispatchEvent(new Event('statechange'));}
 }
@@ -25,7 +25,7 @@ test('renderer failures are identified specifically and remember a different pla
 test('compatibility playback uses the output clock and supports precise pause, seek, loop and restart',async()=>{
   const {engine}=setup();engine.src='blob:lesson';await engine.setMode('compatibility');await engine.loading;engine.currentTime=17.36;await engine.play();engine.context.currentTime+=.75;assert(Math.abs(engine.currentTime-18.11)<1e-8);
   engine.pause();const paused=engine.currentTime;engine.context.currentTime+=3;assert.equal(engine.currentTime,paused);
-  engine.currentTime=29.09;await engine.play();assert.equal(engine.node.offset,29.09);engine.currentTime=6;assert.equal(engine.node.offset,6);await Promise.resolve();assert(!engine.seeking);
+  engine.currentTime=29.09;await engine.play();assert.equal(engine.node.offset,29.09);let seekPosition;engine.addEventListener('seeking',()=>seekPosition=engine.currentTime);engine.context.currentTime+=.5;engine.currentTime=6;assert.equal(seekPosition,6);assert.equal(engine.node.offset,6);await Promise.resolve();assert(!engine.seeking);
   engine.loop=true;engine.context.currentTime+=91;assert.equal(engine.currentTime,7);engine.pause();engine.loop=false;engine.currentTime=90;await engine.play();assert.equal(engine.node.offset,0);engine.pause();await engine._closeContext();
 });
 test('reconnecting replaces the output context and reuses only the current decoded recording',async()=>{
@@ -47,4 +47,18 @@ test('changing recordings while decoding discards the old buffer and cancels its
   while(decodes.length<2)await Promise.resolve();
   decodes[0]({duration:70,numberOfChannels:1});await assert.rejects(oldLoad,{name:'AbortError'});await canceled;assert(engine.paused);assert.equal(engine.buffer,null);
   decodes[1]({duration:80,numberOfChannels:2});await engine.loading;assert.equal(engine.bufferUrl,'blob:second');assert.equal(engine.duration,80);assert(engine.paused);await engine._closeContext();
+});
+test('sentence audio stops on the output clock while page callbacks are delayed',async()=>{
+  const {engine}=setup();engine.src='blob:lesson';await engine.setMode('compatibility');await engine.loading;
+  engine.currentTime=17.36;engine.setPlaybackEnd(18.11);let ranges=0,ends=0;engine.addEventListener('rangeended',()=>ranges++);engine.addEventListener('ended',()=>ends++);
+  await engine.play();assert(Math.abs(engine.node.stopAt-.75)<1e-8);
+  // The UI thread has not processed onended yet, but audio and its clock stop at the cut.
+  engine.context.currentTime=8;assert.equal(engine.currentTime,18.11);engine.node.onended();assert(engine.paused);assert.equal(engine.currentTime,18.11);assert.equal(ranges,1);assert.equal(ends,0);assert(!engine.ended);
+  engine.setPlaybackEnd(null);await engine.play();engine.context.currentTime+=1;assert.equal(engine.currentTime,19.11);engine.pause();await engine._closeContext();
+});
+test('scrubbing releases a scheduled sentence end and reconnect can rearm the same cut',async()=>{
+  const {engine}=setup();engine.src='blob:lesson';await engine.setMode('compatibility');await engine.loading;
+  engine.currentTime=10;engine.setPlaybackEnd(11.1);await engine.play();const old=engine.node;
+  engine.context.currentTime+=.5;engine.addEventListener('seeking',()=>engine.setPlaybackEnd(null));engine.currentTime=5;assert.equal(old.onended,null);assert.equal(engine.node.stopAt,undefined);assert.equal(engine.node.offset,5);
+  engine.pause();await engine.reconnect();await engine.loading;engine.currentTime=10;engine.setPlaybackEnd(11.1);await engine.play();assert(Math.abs(engine.node.stopAt-engine.context.currentTime-1.1)<1e-8);engine.pause();await engine._closeContext();
 });

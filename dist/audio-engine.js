@@ -14,7 +14,7 @@ export class AudioEngine extends EventTarget{
     super();if(storage===undefined){try{storage=globalThis.localStorage;}catch{storage=null;}}this.element=element;this.storage=storage;this.Context=AudioContext;this.Decoder=OfflineAudioContext;this.fetchFile=fetchFile;
     this.mode='auto';this.fallback=false;try{const saved=storage?.getItem(MODE_KEY);if(['auto','native','compatibility'].includes(saved))this.mode=saved;this.fallback=storage?.getItem(FALLBACK_KEY)==='true';}catch{}
     this.backend=this.mode==='compatibility'||this.mode==='auto'&&this.fallback?'compatibility':'native';
-    this._url=element.getAttribute('src')||'';this._offset=0;this._duration=NaN;this._paused=true;this._seeking=false;this._ended=false;this._ready=0;this._network=0;this._error=null;this._volume=1;this._muted=false;this._loop=false;this._generation=0;this._playTicket=0;
+    this._url=element.getAttribute('src')||'';this._offset=0;this._duration=NaN;this._paused=true;this._seeking=false;this._ended=false;this._ready=0;this._network=0;this._error=null;this._volume=1;this._muted=false;this._loop=false;this._generation=0;this._playTicket=0;this._playbackEnd=null;
     for(const name of events)element.addEventListener(name,()=>{
       if(this.backend!=='native')return;
       if(name==='error'&&isRendererFailure(element.error)){this.rendererFailure=element.error.message;this.fallback=true;try{storage?.setItem(FALLBACK_KEY,'true');}catch{}}
@@ -31,12 +31,12 @@ export class AudioEngine extends EventTarget{
   get currentTime(){
     if(this.backend==='native')return this.element.currentTime;
     const time=this._offset+(!this._paused&&this.context?Math.max(0,this.context.currentTime-this._startedAt):0);
-    return this._loop&&this._duration>0?time%this._duration:Math.min(time,Number.isFinite(this._duration)?this._duration:Infinity);
+    return this._loop&&this._playbackEnd===null&&this._duration>0?time%this._duration:Math.min(time,Number.isFinite(this._duration)?this._duration:Infinity,this.node&&this._nodeBounded?this._nodeEnd:Infinity);
   }
   set currentTime(value){
     if(this.backend==='native'){this.element.currentTime=value;return;}
     if(!Number.isFinite(value))return;
-    this._offset=Math.max(0,Math.min(value,Number.isFinite(this._duration)?this._duration:Infinity));this._ended=false;this._seeking=true;this._emit('seeking');
+    this._stopNode();this._offset=Math.max(0,Math.min(value,Number.isFinite(this._duration)?this._duration:Infinity));this._startedAt=this.context?.currentTime||0;this._ended=false;this._seeking=true;this._emit('seeking');
     if(!this._paused)this._startNode();
     queueMicrotask(()=>{this._seeking=false;this._emit('seeked');this._emit('timeupdate');});
   }
@@ -53,7 +53,13 @@ export class AudioEngine extends EventTarget{
   get volume(){return this.backend==='native'?this.element.volume:this._volume;}
   set volume(value){this._volume=Math.max(0,Math.min(1,value));this.element.volume=this._volume;this._updateGain();}
   get loop(){return this.backend==='native'?this.element.loop:this._loop;}
-  set loop(value){this._loop=!!value;this.element.loop=!!value;if(this.node)this.node.loop=this._loop;}
+  set loop(value){this._loop=!!value;this.element.loop=!!value;if(this.node)this.node.loop=this._loop&&this._playbackEnd===null;}
+  // Web Audio stops on its own clock, even when BOOX delays the page's timers.
+  setPlaybackEnd(value){
+    const end=Number.isFinite(value)?Math.max(0,value):null;if(end===this._playbackEnd)return;
+    const position=this.currentTime;this._playbackEnd=end;
+    if(this.backend==='compatibility'&&!this._paused&&!this._seeking){this._offset=position;this._startNode();}
+  }
   _updateGain(){if(this.gain)this.gain.gain.value=this._muted?0:this._volume;}
   _ensureContext(){
     if(this.context&&this.context.state!=='closed')return this.context;
@@ -71,7 +77,7 @@ export class AudioEngine extends EventTarget{
   load(){
     if(this.backend==='native'){this.element.load();return;}
     this.pause();this._generation++;const generation=this._generation,url=this._url;
-    this.abortFetch?.abort();this._offset=0;this._duration=NaN;this._ready=0;this._error=null;this._ended=false;this._seeking=false;this._network=url?2:0;this._emit('emptied');
+    this.abortFetch?.abort();this._playbackEnd=null;this._offset=0;this._duration=NaN;this._ready=0;this._error=null;this._ended=false;this._seeking=false;this._network=url?2:0;this._emit('emptied');
     if(!url){this.buffer=null;this.bufferUrl='';this.loading=null;return;}
     this._emit('loadstart');
     this.loading=(async()=>{
@@ -91,9 +97,10 @@ export class AudioEngine extends EventTarget{
   }
   _stopNode(){const node=this.node;this.node=null;if(node){node.onended=null;try{node.stop();}catch{}node.disconnect();}clearInterval(this.tick);this.tick=null;}
   _startNode(){
-    this._stopNode();const context=this._ensureContext(),node=context.createBufferSource();node.buffer=this.buffer;node.loop=this._loop;node.connect(this.gain);this.node=node;this._startedAt=context.currentTime;
-    node.onended=()=>{if(this.node!==node||this._loop)return;this._offset=this._duration;this._paused=true;this._ended=true;this._stopNode();this._emit('timeupdate');this._emit('pause');this._emit('ended');};
-    node.start(0,Math.min(this._offset,this._duration));this.tick=setInterval(()=>this._emit('timeupdate'),250);
+    this._stopNode();const context=this._ensureContext(),node=context.createBufferSource();node.buffer=this.buffer;node.loop=this._loop&&this._playbackEnd===null;node.connect(this.gain);this.node=node;this._startedAt=context.currentTime;
+    this._nodeBounded=this._playbackEnd!==null&&this._playbackEnd<=this._duration;this._nodeEnd=this._nodeBounded?Math.max(this._offset,this._playbackEnd):this._duration;
+    node.onended=()=>{if(this.node!==node||node.loop)return;const bounded=this._nodeBounded;this._offset=this._nodeEnd;this._paused=true;this._ended=!bounded;this._stopNode();if(bounded)this._emit('rangeended');this._emit('timeupdate');this._emit('pause');if(!bounded)this._emit('ended');};
+    node.start(0,Math.min(this._offset,this._duration));if(this._nodeBounded)node.stop(context.currentTime+Math.max(0,this._nodeEnd-this._offset));this.tick=setInterval(()=>this._emit('timeupdate'),250);
   }
   async play(){
     if(this.backend==='native')return this.element.play();
@@ -130,5 +137,5 @@ export class AudioEngine extends EventTarget{
     if(this.backend==='compatibility'){await this._closeContext();this.unlock().catch(()=>{});}
     this.load();
   }
-  diagnostics(){return [`Audio mode: ${this.mode}; engine: ${this.backend}; renderer fallback saved: ${this.fallback}`,`Last native renderer failure: ${this.rendererFailure||'Not recorded this session'}`,`Web Audio state: ${this.context?.state||'not open'}; sample rate: ${this.context?.sampleRate||'N/A'}; decoded channels: ${this.buffer?.numberOfChannels||'N/A'}`].join('\n');}
+  diagnostics(){return [`Audio mode: ${this.mode}; engine: ${this.backend}; renderer fallback saved: ${this.fallback}`,`Last native renderer failure: ${this.rendererFailure||'Not recorded this session'}`,`Web Audio state: ${this.context?.state||'not open'}; sample rate: ${this.context?.sampleRate||'N/A'}; decoded channels: ${this.buffer?.numberOfChannels||'N/A'}`,`Scheduled audio stop: ${this._playbackEnd??'None'}`].join('\n');}
 }

@@ -80,3 +80,7 @@ html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
 .sentence-text canvas{display:block;width:min(100%,var(--excerpt-width));max-width:100%;height:auto;background:white;border-radius:3px;margin:6px 0}
 .sentence-row-actions{display:flex;gap:8px;margin-top:10px}
 .sentence-row-actions button{min-width:90px;min-height:44px;padding:9px 14px;font-size:15px}
+
+/* Cumulative passes share the existing player and sentence timing editor. */
+.shadow-pass-actions{display:flex;gap:8px;flex-wrap:wrap}.shadow-pass-actions button{flex:1;min-width:85px;padding:10px 8px;font-size:14px}
+#sentence-controls.cumulative>.sentence-actions,#sentence-controls.cumulative>#sentence-status{display:none}

@@ -22,7 +22,7 @@ try {
 await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8765/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);
 assert.equal(await page.locator('#app-version').textContent(),`v${JSON.parse(fs.readFileSync('dist/version.json')).version}`);
 await menu('library');await page.locator('#file-input').setInputFiles(file);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('1 stored'));
-await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();await assertSelected(1);
+await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();await page.locator('#shadow-mode').selectOption('sentence');await assertSelected(1);
 await page.waitForFunction(()=>document.getElementById('player').readyState>=1);
 await page.locator('#edit-sentence-mode').click();
 // Reproduce an oversized first cut, shorten it, then reclaim the gap for sentence 2.
@@ -65,7 +65,7 @@ await page.locator('#sentence-play').click();await page.waitForFunction(()=>docu
 await seek(0);await page.waitForTimeout(1500);await assertSelected(2);assert.equal(await page.locator('#player').evaluate(p=>p.paused),true);
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('sentence-status').textContent.startsWith('Sentence 3')&&!document.getElementById('player').paused);await pause();await page.locator('#sentence-auto').uncheck();
 console.log('Scrubbing cancels queued automatic continuation; explicit automatic practice still advances sequentially.');
-await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-mode',{state:'attached'});
+await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-mode',{state:'attached'});await page.locator('#shadow-mode').selectOption('sentence');
 await page.locator('#sentence-next').click();await page.locator('#edit-sentence-mode').click();
 assert.equal(Number(await page.locator('#timing-start').inputValue()),earlier);assert.equal(Number(await page.locator('#timing-end').inputValue()),end);assert.equal(await page.locator('#lesson').inputValue(),'10');assert.deepEqual(errors,[]);
 console.log('Corrected timings, imported MP3 and lesson progress survive offline restart.');
