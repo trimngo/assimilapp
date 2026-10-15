@@ -95,9 +95,10 @@ html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
 /* Keep shadowing focused on the text; advanced controls and full pages live in Options. */
 body[data-shadow-compact] .session{margin-bottom:8px}body[data-shadow-compact] .session #step-title{font-size:28px;margin:8px 0}
 body[data-shadow-compact] .lesson-heading{margin-bottom:8px}body[data-shadow-compact] .audio-card{margin-bottom:8px}
-#shadow-coverage{font-size:13px;margin:6px 0!important}#shadow-simple-controls{display:flex;gap:6px;align-items:center;margin:6px 0 8px}
-#shadow-simple-controls button{min-width:0;min-height:44px;padding:8px;font-size:14px}#shadow-text{flex:1}#shadow-simple-next{width:36px;flex:none}
-#shadow-text[aria-pressed="false"]{background:var(--paper)}#shadow-options{border-top:1px solid var(--line);margin-top:10px}
+#shadow-coverage{font-size:13px;margin:6px 0!important}#shadow-simple-controls{display:grid;grid-template-columns:32px minmax(0,1fr) auto auto 32px;gap:6px;align-items:center;margin:6px 0 8px}
+#shadow-simple-controls button{min-width:0;min-height:44px;padding:8px;font-size:14px}
+.shadow-text-check{display:flex;align-items:center;gap:6px;min-width:0;min-height:44px;font-size:13px;line-height:1.2;cursor:pointer}.shadow-text-check input{width:20px;height:20px;flex:none;margin:0;accent-color:var(--ink)}
+#shadow-options{border-top:1px solid var(--line);margin-top:10px}
 body[data-shadow-compact] .sentence-list{margin:4px 0}body[data-shadow-compact] .sentence-row{padding:2px 0;border:0}
 body[data-shadow-compact] .sentence-text canvas{margin:2px 0;width:100%;max-width:100%;border-radius:0}
 body[data-shadow-compact] .sentence-select,body[data-shadow-compact] .sentence-row-actions{display:none}

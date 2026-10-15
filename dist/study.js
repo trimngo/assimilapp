@@ -105,10 +105,11 @@ export async function connectStudy(api){
     if($('shadow-simple')){
       const withText=shadowMode==='cumulative'?!!pass?.withText:shadowMode==='sentence'?shadowSingleText:shadowMode==='with';
       setShadowText('shadow-coverage',cumulative&&pass?`Learning sentence ${pass.sentence+1} of ${count} · ${pass.label}${pass.cumulative?' together':''}`:shadowMode==='sentence'?`Sentence ${segmentIndex+1} of ${count}`:'Whole dialogue');
-      setShadowText('shadow-text',withText?'With text':'Without text');$('shadow-text').setAttribute('aria-pressed',String(withText));
+      $('shadow-text').checked=withText;
       setShadowText('shadow-simple-play',player.paused?'Play':'Pause');
       $('shadow-simple-play').disabled=$('shadow-simple-repeat').disabled=!api.getActiveAudioId()||sentencePractice()&&!pass;
       $('shadow-simple-next').disabled=cumulative?(!pass||pass.final):shadowMode==='sentence'?segmentIndex>=count-1:true;
+      $('shadow-simple-back').disabled=cumulative?(!pass||pass.index===0):shadowMode==='sentence'?segmentIndex===0:true;
       $('shadow-simple-next').setAttribute('aria-label',cumulative?$('shadow-pass-next').textContent:'Next sentence');$('shadow-simple-next').title=$('shadow-simple-next').getAttribute('aria-label');
     }
   }
@@ -434,7 +435,7 @@ export async function connectStudy(api){
   $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='cumulative')startShadowing();else if(api.getProgress().step===4&&sentencePractice())startSentence();else{seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeek,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
   const audioCard=document.querySelector('.audio-card');
-  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-simple-controls"><button id="shadow-text" class="secondary" type="button" aria-label="Show or hide the German text" aria-pressed="true">With text</button><button id="shadow-simple-play" class="primary" type="button">Play</button><button id="shadow-simple-repeat" class="secondary" type="button">Repeat</button><button id="shadow-simple-next" class="secondary" type="button" aria-label="Next practice stage">→</button></div><div id="shadow-feedback"></div></div>`);
+  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-simple-controls"><button id="shadow-simple-back" class="secondary" type="button" aria-label="Previous shadowing stage" title="Previous shadowing stage">←</button><label class="shadow-text-check"><input id="shadow-text" type="checkbox" checked><span>Show text</span></label><button id="shadow-simple-play" class="primary" type="button">Play</button><button id="shadow-simple-repeat" class="secondary" type="button">Repeat</button><button id="shadow-simple-next" class="secondary" type="button" aria-label="Next practice stage">→</button></div><div id="shadow-feedback"></div></div>`);
   audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details>`);
   $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Repeat sentence</button></div></div>`);
   $('shadow-simple').append($('sentence-list'));
@@ -451,9 +452,10 @@ export async function connectStudy(api){
   $('shadow-individual-play').addEventListener('click',()=>{if(!player.paused)pauseAudio('user paused');else playFromSentence(segmentIndex);});
   $('shadow-individual-repeat').addEventListener('click',startSentence);
   $('shadow-simple-next').addEventListener('click',()=>{if(shadowMode==='cumulative')$('shadow-pass-next').click();else $('sentence-next').click();});
-  $('shadow-text').addEventListener('click',()=>{
-    const pass=currentPass();if(shadowMode==='cumulative'&&pass){moveShadowing(shadowingPosition(pass.sentence,(pass.cumulative?2:0)+(pass.withText?1:0))).catch(error=>api.notice(error.message));return;}
-    if(shadowMode==='sentence')shadowSingleText=!shadowSingleText;else{shadowMode=shadowMode==='with'?'without':'with';$('shadow-mode').value=shadowMode;}
+  $('shadow-simple-back').addEventListener('click',()=>{if(shadowMode==='cumulative')moveShadowing((currentPass()?.index||0)-1).catch(error=>api.notice(error.message));else $('sentence-back').click();});
+  $('shadow-text').addEventListener('change',event=>{
+    const show=event.currentTarget.checked,pass=currentPass();if(shadowMode==='cumulative'&&pass){moveShadowing(shadowingPosition(pass.sentence,(pass.cumulative?2:0)+(show?0:1))).catch(error=>api.notice(error.message));return;}
+    if(shadowMode==='sentence')shadowSingleText=show;else{shadowMode=show?'with':'without';$('shadow-mode').value=shadowMode;}
     stopSession();update().catch(error=>api.notice(error.message));
   });
   player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure){lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};needsReconnect=true;$('play-status').textContent='Audio output failed. Tap Play to reconnect and continue.';}});
