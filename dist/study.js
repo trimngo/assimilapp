@@ -12,10 +12,10 @@ export async function connectStudy(api){
   let course=await api.read('state','course')||{books:{},segments:{},rate:1};
   course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.rate=Number(course.rate)||1;
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='',shadowMode='sentence';
-  const player=$('player');
+  const player=api.player||$('player');
   let appSeek=null,boundedPlay=false,reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0;
   const audioHealth=observeAudioHealth(player,{
-    onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent='Playback was interrupted. Tap Play to reconnect and continue.';}},
+    onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent=playbackFailure(player)?'Audio output failed. Tap Play to reconnect and continue.':'Playback was interrupted. Tap Play to reconnect and continue.';}},
     onStalled:()=>{needsReconnect=true;pauseAudio('stalled clock');$('play-status').textContent='Audio stopped advancing. Tap Play to reconnect and continue.';}
   });
   document.addEventListener('visibilitychange',()=>audioHealth.record(`page ${document.visibilityState}`));
@@ -114,13 +114,14 @@ export async function connectStudy(api){
     reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. Use the lesson pages below.';});
   }
   async function playFromSentence(index){
-    selectSentence(index);const span=sentences()[index];if(!span)return;
+    player.unlock?.().catch(()=>{});selectSentence(index);const span=sentences()[index];if(!span)return;
     freePlayback();const active=session,id=api.getActiveAudioId();
     try{await readyPlayer();if(session!==active||api.getActiveAudioId()!==id)return;seekTo(span.start);await play();}
     catch(error){if(session===active){stopSession();api.notice(error.message);}}
   }
-  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||($('playback-controls')||player).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');refreshSentenceButtons();}
+  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||($('playback-controls')||$('player')).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');refreshSentenceButtons();}
   async function play(bounded=false){
+    player.unlock?.().catch(()=>{});
     if(reconnecting&&!bounded)return false;
     if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4&&shadowMode==='sentence')freePlayback();return reconnectAudio({resume:true});}
     const request=++playRequest,source=player.getAttribute('src');let timer;boundedPlay=bounded;audioHealth.expectPlay();
@@ -140,7 +141,7 @@ export async function connectStudy(api){
       return false;
     }finally{clearTimeout(timer);if(request===playRequest)boundedPlay=false;}
   }
-  async function startSentence(){const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
+  async function startSentence(){player.unlock?.().catch(()=>{});const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
   function refreshTimingEditor(force=false){
     const span=sentences()[segmentIndex];
     $('sentence-tools').hidden=api.getProgress().step!==4||shadowMode!=='sentence'||!api.getActiveAudioId();
@@ -337,9 +338,9 @@ export async function connectStudy(api){
     scheduleBoundary();
   });
   player.addEventListener('ended',()=>finishRange().catch(error=>api.notice(error.message)));
-  $('start-review').addEventListener('click',async()=>{let active;try{stopSession();const tracks=reviewTracks().filter(x=>x.file);if(!tracks.length)return;active=session={kind:'review',tracks,index:0};player.loop=false;$('repeat').checked=false;$('play-status').textContent=`Reviewing lesson ${tracks[0].lesson}`;await beginRange(active,tracks[0].file.id);}catch(error){if(session===active){pauseAudio('review failed');api.notice(error.message);}}});
+  $('start-review').addEventListener('click',async()=>{let active;try{player.unlock?.().catch(()=>{});stopSession();const tracks=reviewTracks().filter(x=>x.file);if(!tracks.length)return;active=session={kind:'review',tracks,index:0};player.loop=false;$('repeat').checked=false;$('play-status').textContent=`Reviewing lesson ${tracks[0].lesson}`;await beginRange(active,tracks[0].file.id);}catch(error){if(session===active){pauseAudio('review failed');api.notice(error.message);}}});
   $('review-count').addEventListener('change',refreshReview);
-  $('start-blind').addEventListener('click',async()=>{let active;try{stopSession();const id=api.getProgress().tracks[api.getProgress().lesson];if(!id){api.notice('Import the recording for this lesson first.');return;}active=session={kind:'blind',played:0,id};player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Listen 1 of 2…';await beginRange(active,id);}catch(error){if(session===active){pauseAudio('blind listening failed');api.notice(error.message);}}});
+  $('start-blind').addEventListener('click',async()=>{let active;try{player.unlock?.().catch(()=>{});stopSession();const id=api.getProgress().tracks[api.getProgress().lesson];if(!id){api.notice('Import the recording for this lesson first.');return;}active=session={kind:'blind',played:0,id};player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Listen 1 of 2…';await beginRange(active,id);}catch(error){if(session===active){pauseAudio('blind listening failed');api.notice(error.message);}}});
   $('sentence-play').addEventListener('click',startSentence);
   $('sentence-back').addEventListener('click',()=>{stopSession();segmentIndex=Math.max(0,segmentIndex-1);refreshSentences();});$('sentence-next').addEventListener('click',()=>{stopSession();segmentIndex=Math.min(sentences().length-1,segmentIndex+1);refreshSentences();});
   $('sentence-auto').addEventListener('change',()=>{if(!$('sentence-auto').checked)clearTimeout(gapTimer);});
@@ -349,17 +350,27 @@ export async function connectStudy(api){
   $('mini-play').addEventListener('click',()=>{clearTimeout(gapTimer);if(!player.paused){pauseAudio('user paused');return;}play();});
   $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='sentence')startSentence();else{seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeekDuringReconnect,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
-  player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure)lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};});
-  async function reconnectAudio({resume}={}){
+  player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure){lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};needsReconnect=true;$('play-status').textContent='Audio output failed. Tap Play to reconnect and continue.';}});
+  function refreshAudioMode(){
+    if(!player.backend)return;
+    $('audio-mode').value=player.mode;const compatibility=player.backend==='compatibility';
+    $('speed').disabled=compatibility;$('speed').value=compatibility?'1':String(course.rate);
+    $('audio-mode-note').textContent=compatibility?'Compatibility audio is active. It uses 1× speed to keep the pronunciation’s pitch unchanged.':'Automatic switches to compatibility audio after a browser renderer error.';
+  }
+  player.addEventListener('enginechange',()=>{audioHealth.record(`engine changed: ${player.backend}`);refreshAudioMode();});
+  $('audio-mode').addEventListener('change',()=>reconnectAudio({mode:$('audio-mode').value}));refreshAudioMode();
+  async function reconnectAudio({resume,mode}={}){
     if(reconnecting||!player.getAttribute('src'))return false;
     const source=player.getAttribute('src'),active=session,id=api.getActiveAudioId();
     const saved=recoveryPosition?.source===source?recoveryPosition:{source,time:player.currentTime,resume:!player.paused||!!player.error||needsReconnect,rate:player.playbackRate,loop:player.loop};
     recoveryPosition=saved;reconnectSession=active;reconnecting=true;clearTimeout(boundaryTimer);clearTimeout(gapTimer);appSeek=null;
-    $('reconnect-audio').disabled=true;$('audio-reconnect-status').hidden=false;$('audio-reconnect-status').textContent='Reconnecting audio…';
+    $('reconnect-audio').disabled=true;$('audio-mode').disabled=true;$('audio-reconnect-status').hidden=false;$('audio-reconnect-status').textContent='Reconnecting audio…';
     try{
-      pauseAudio('reconnect');const request=playRequest;player.load();await readyPlayer();
+      pauseAudio('reconnect');const request=playRequest;
+      if(mode&&player.setMode)await player.setMode(mode);else if(player.reconnect)await player.reconnect();else player.load();
+      await readyPlayer();
       if(player.getAttribute('src')!==source||api.getActiveAudioId()!==id||session!==reconnectSession||request!==playRequest){$('audio-reconnect-status').textContent='Audio reconnect canceled.';return false;}
-      player.playbackRate=saved.rate;player.loop=saved.loop;player.muted=false;player.volume=1;
+      player.playbackRate=mode?course.rate:saved.rate;player.loop=saved.loop;player.muted=false;player.volume=1;
       const cap=routineDialogue();seekTo(Math.min(saved.time,player.duration,cap?.end??Infinity));restoreRoutineSession();
       needsReconnect=false;recoveryPosition=null;
       const resumed=resume??saved.resume;
@@ -368,15 +379,15 @@ export async function connectStudy(api){
         $('audio-reconnect-status').textContent=completed?'Audio reconnected. Playback reached its stopping point.':'Audio was reloaded, but playback did not start. Tap Play to retry.';
         return !!completed;
       }
-      $('audio-reconnect-status').textContent='Audio reconnected at your saved position. If still silent, check the device’s Bluetooth media output.';
+      $('audio-reconnect-status').textContent=`Audio reconnected at your saved position${player.backend==='compatibility'?' using compatibility playback':''}. If still silent, check the device’s Bluetooth media output.`;
       return true;
     }catch(error){if(player.getAttribute('src')===source){needsReconnect=true;$('audio-reconnect-status').textContent=error.message;}return false;}
-    finally{reconnecting=false;reconnectSession=null;$('reconnect-audio').disabled=false;playbackControls.refresh();scheduleBoundary();}
+    finally{reconnecting=false;reconnectSession=null;$('reconnect-audio').disabled=false;$('audio-mode').disabled=false;refreshAudioMode();playbackControls.refresh();scheduleBoundary();}
   }
   $('reconnect-audio').addEventListener('click',()=>reconnectAudio());
   $('copy-audio-details').addEventListener('click',async()=>{
     const lesson=audioLesson(),file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());
-    const details=[`App: ${APP_VERSION}`,`Browser: ${navigator.userAgent}`,`Study: lesson ${api.getProgress().lesson}, step ${api.getProgress().step+1}`,`Recording: ${file?.name||'None'}`,`Prepared lesson: ${lesson?.number||'Not matched'}`,`Dialogue end: ${routineDialogue()?.end??'No whole-dialogue limit in this mode'}`,`Position: ${player.currentTime}; duration: ${player.duration}`,`Paused: ${player.paused}; seeking: ${player.seeking}; session: ${session?.kind||'None'}`,`Listen completed: ${session?.kind==='blind'?session.played:'N/A'}; finishing: ${session?.finishing??false}`,`Ready state: ${player.readyState}; network state: ${player.networkState}; visible: ${document.visibilityState}`,`Reconnect needed: ${needsReconnect}; reconnecting: ${reconnecting}`,`Muted: ${player.muted}; volume: ${player.volume}`,`Current audio error: ${player.error?`${player.error.code}; ${player.error.message||''}`:'None'}`,`Last audio error: ${lastMediaFailure?`${lastMediaFailure.code}; recording ${lastMediaFailure.recording}; ${lastMediaFailure.detail}`:'None recorded'}`,audioHealth.details()].join('\n');
+    const details=[`App: ${APP_VERSION}`,player.diagnostics?.()||'Audio engine: native',`Browser: ${navigator.userAgent}`,`Study: lesson ${api.getProgress().lesson}, step ${api.getProgress().step+1}`,`Recording: ${file?.name||'None'}`,`Prepared lesson: ${lesson?.number||'Not matched'}`,`Dialogue end: ${routineDialogue()?.end??'No whole-dialogue limit in this mode'}`,`Position: ${player.currentTime}; duration: ${player.duration}`,`Paused: ${player.paused}; seeking: ${player.seeking}; session: ${session?.kind||'None'}`,`Listen completed: ${session?.kind==='blind'?session.played:'N/A'}; finishing: ${session?.finishing??false}`,`Ready state: ${player.readyState}; network state: ${player.networkState}; visible: ${document.visibilityState}`,`Reconnect needed: ${needsReconnect}; reconnecting: ${reconnecting}`,`Muted: ${player.muted}; volume: ${player.volume}`,`Current audio error: ${player.error?`${player.error.code}; ${player.error.message||''}`:'None'}`,`Last audio error: ${lastMediaFailure?`${lastMediaFailure.code}; recording ${lastMediaFailure.recording}; ${lastMediaFailure.detail}`:'None recorded'}`,audioHealth.details()].join('\n');
     try{await navigator.clipboard.writeText(details);$('audio-reconnect-status').hidden=false;$('audio-reconnect-status').textContent='Audio details copied. Paste them into the support chat.';}
     catch{$('audio-details').textContent=details;$('audio-details').hidden=false;}
   });
@@ -408,7 +419,7 @@ export async function connectStudy(api){
   $('use-prepared').addEventListener('click',async()=>{stopSession();course.segmentMode[api.getActiveAudioId()]='prepared';await saveCourse();segmentIndex=0;refreshSentences();});
   $('reveal-german').addEventListener('click',async()=>{recallRevealed=!recallRevealed;$('reveal-german').textContent=recallRevealed?'Hide German again':'Show German to check';await renderBook();});
   player.addEventListener('emptied',()=>{appSeek=null;clearTimeout(boundaryTimer);});
-  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;needsReconnect=false;appSeek=null;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=0;player.playbackRate=course.rate;refreshSentences();playbackControls.refresh();});
+  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;needsReconnect=false;appSeek=null;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=0;player.playbackRate=course.rate;refreshAudioMode();refreshSentences();playbackControls.refresh();});
   async function renderBook(){
     const recall=api.getProgress().step===7&&!recallRevealed;
     const plan=preparedPlan(recall);
@@ -448,7 +459,7 @@ export async function connectStudy(api){
     try{if(ticket===generation)await renderBook();}catch(error){if(ticket===generation)api.notice(`Could not open your PDF: ${error.message}`);}
   }
   function exportCourse(){return {rate:course.rate,preferCustom:!!course.preferCustom,books:api.getLibrary().filter(x=>x.kind==='pdf'&&course.books[x.id]).map(x=>({name:x.name,size:x.size,settings:course.books[x.id],active:x.id===getBook()?.id})),segments:api.getLibrary().filter(x=>x.kind==='audio'&&course.segments[x.id]).map(x=>({name:x.name,size:x.size,timings:course.segments[x.id],useCustom:course.segmentMode[x.id]==='custom'}))};}
-  async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}course=next;await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;await update();}
+  async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}course=next;await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;refreshAudioMode();await update();}
   async function verifyBook(meta,profile,options){return verifyBookLayout(await reader.load(await api.getFile(meta),meta.id),profile,options);}
   return {update,exportCourse,restoreCourse,stopSession,verifyBook,flush:()=>courseQueue};
 }

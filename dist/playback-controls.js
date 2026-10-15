@@ -2,12 +2,13 @@ import {formatTime} from './audio-tools.js';
 
 // Browser media events can be delayed or missed. Always display the native audio clock.
 export function connectPlaybackControls(player,{onPlay,onPause,onSeek,onTick}={}){
-  player.insertAdjacentHTML('afterend',`<div id="playback-controls" class="playback-controls" role="group" aria-label="Audio playback"><button id="playback-toggle" class="primary" type="button" aria-label="Play recording">Play</button><div class="playback-position"><input id="playback-position" type="range" min="0" max="0" step="0.01" value="0" aria-label="Audio position"><span id="playback-time">0:00 / 0:00</span></div></div>`);
+  const element=player.element||player;
+  element.insertAdjacentHTML('afterend',`<div id="playback-controls" class="playback-controls" role="group" aria-label="Audio playback"><button id="playback-toggle" class="primary" type="button" aria-label="Play recording">Play</button><div class="playback-position"><input id="playback-position" type="range" min="0" max="0" step="0.01" value="0" aria-label="Audio position"><span id="playback-time">0:00 / 0:00</span></div></div>`);
   const controls=document.getElementById('playback-controls'),toggle=document.getElementById('playback-toggle'),position=document.getElementById('playback-position'),time=document.getElementById('playback-time');
   let poll=null,dragging=false;
-  player.classList.add('app-controlled');player.controls=false;
+  element.classList.add('app-controlled');element.controls=false;
   function refresh(){
-    controls.hidden=player.hidden;
+    controls.hidden=element.hidden;
     const loaded=!!player.getAttribute('src'),duration=Number.isFinite(player.duration)?player.duration:0,current=Number.isFinite(player.currentTime)?player.currentTime:0;
     toggle.disabled=!loaded;position.disabled=!loaded||duration<=0;
     const label=player.paused?'Play':'Pause';if(toggle.textContent!==label)toggle.textContent=label;

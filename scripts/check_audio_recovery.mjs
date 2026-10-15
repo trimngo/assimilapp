@@ -1,4 +1,5 @@
-// Pass original L010–L013 MP3 paths. This simulates media errors, not real Bluetooth hardware.
+// Pass original L010–L013 MP3 paths. Exercises the Standard engine; compatibility has a separate check.
+// This simulates media errors, not real Bluetooth hardware.
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE||'playwright');
 import fs from 'node:fs';import assert from 'node:assert/strict';
 const files=process.argv.slice(2);if(files.length!==4||files.some(p=>!fs.existsSync(p)))throw new Error('Pass original L010, L011, L012 and L013 MP3 paths.');
@@ -8,7 +9,7 @@ const menu=async tab=>{await page.locator('#app-menu summary').click();await pag
 const track=n=>page.waitForFunction(n=>document.getElementById('mini-title').textContent===`L${String(n).padStart(3,'0')}-LESSON.mp3`&&!document.getElementById('player').paused,n);
 const course=()=>page.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('german-study',1);r.onsuccess=()=>resolve(r.result);}),value=await new Promise(resolve=>{const r=db.transaction('state').objectStore('state').get('course');r.onsuccess=()=>resolve(r.result);});db.close();return value;});
 try{
-await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8767/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);await menu('library');await page.locator('#file-input').setInputFiles(files);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('4 stored'));await menu('study');await page.locator('#lesson').fill('13');await page.locator('#lesson').dispatchEvent('change');await page.waitForFunction(()=>document.getElementById('mini-title').textContent==='L013-LESSON.mp3'&&document.getElementById('player').readyState>=1);
+await page.addInitScript(()=>localStorage.setItem('german-study-audio-mode','native'));await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8767/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);await menu('library');await page.locator('#file-input').setInputFiles(files);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('4 stored'));await menu('study');await page.locator('#lesson').fill('13');await page.locator('#lesson').dispatchEvent('change');await page.waitForFunction(()=>document.getElementById('mini-title').textContent==='L013-LESSON.mp3'&&document.getElementById('player').readyState>=1);
 await page.locator('#start-review').click();await track(10);
 // Output errors can coexist with an advancing clock and a stale seeking flag.
 await page.locator('#player').evaluate((p,end)=>{Object.defineProperty(p,'error',{configurable:true,get:()=>({code:3,message:'PIPELINE_ERROR_COULD_NOT_RENDER'})});Object.defineProperty(p,'seeking',{configurable:true,get:()=>true});p.dispatchEvent(new Event('error'));p.currentTime=end-1;},index.lessons[9].audio.dialogue.end);
