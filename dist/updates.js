@@ -1,11 +1,21 @@
-export const APP_VERSION='3.13.0';
-export const CACHE_NAME='german-study-shell-v22';
+export const APP_VERSION='3.13.1';
+export const CACHE_NAME='german-study-shell-v23';
 
 const $=id=>document.getElementById(id);
 function deadline(promise,milliseconds,message){let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),milliseconds);})]).finally(()=>clearTimeout(timer));}
 function workerInfo(worker){if(!worker)return Promise.resolve(null);return new Promise(resolve=>{const channel=new MessageChannel();const timer=setTimeout(()=>{channel.port1.close();resolve(null);},1000);channel.port1.onmessage=event=>{clearTimeout(timer);channel.port1.close();resolve(event.data);};try{worker.postMessage({type:'APP_INFO'},[channel.port2]);}catch{clearTimeout(timer);channel.port1.close();resolve(null);}});}
 
 export async function setupOffline({beforeReload}={}){
+  const displayEvents=[];
+  function recordDisplay(reason){const viewport=window.visualViewport;displayEvents.push(`${(performance.now()/1000).toFixed(1)}s ${reason}: layout ${document.documentElement.clientWidth} × ${document.documentElement.clientHeight}; visual ${viewport?`${Math.round(viewport.width)} × ${Math.round(viewport.height)} at scale ${viewport.scale.toFixed(3)}`:'unavailable'}`);if(displayEvents.length>8)displayEvents.shift();}
+  recordDisplay('opened');for(const name of ['resize','orientationchange','pageshow'])window.addEventListener(name,()=>recordDisplay(name),{passive:true});
+  window.visualViewport?.addEventListener('resize',()=>recordDisplay('visual resize'),{passive:true});
+  $('copy-display-details').addEventListener('click',async()=>{
+    const viewport=window.visualViewport,reader=$('pdf-pages');
+    const details=[`App: ${APP_VERSION}`,`Browser: ${navigator.userAgent}`,`View: ${document.body.dataset.view}; standalone: ${matchMedia('(display-mode:standalone)').matches||!!navigator.standalone}`,`Layout viewport: ${document.documentElement.clientWidth} × ${document.documentElement.clientHeight}; inner: ${innerWidth} × ${innerHeight}`,`Document width: ${document.documentElement.scrollWidth}`,`Browser window: ${outerWidth} × ${outerHeight}`,`Visual viewport: ${viewport?`${viewport.width} × ${viewport.height}; scale: ${viewport.scale}`:'Unavailable'}`,`Screen: ${screen.width} × ${screen.height}; pixel ratio: ${devicePixelRatio}`,`Orientation query: ${matchMedia('(orientation:landscape)').matches?'landscape':'portrait'}`,`Container queries: ${CSS.supports('container-type','inline-size')}`,`Reader width: ${reader?.clientWidth||'hidden in this view'}`,`Viewport setting: ${document.querySelector('meta[name="viewport"]').content}`,'Recent viewport changes:',...displayEvents].join('\n');
+    try{await navigator.clipboard.writeText(details);$('display-details-status').textContent='Display details copied. Paste them into the support chat.';}
+    catch{$('display-details').textContent=details;$('display-details').hidden=false;$('display-details-status').textContent='Copy the display details below.';}
+  });
   const check=$('check-updates'),reload=$('reload-app'),status=$('update-status');
   $('running-version').textContent=`Running version ${APP_VERSION}`;
   check.disabled=false;

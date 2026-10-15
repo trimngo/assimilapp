@@ -71,7 +71,7 @@ export class BookReader {
         if(entry.crop){const crop=validateCrop(entry.crop);visible=document.createElement('canvas');visible.width=Math.max(1,Math.round(source.width*crop.w));visible.height=Math.max(1,Math.round(source.height*crop.h));visible.getContext('2d').drawImage(source,source.width*crop.x,source.height*crop.y,source.width*crop.w,source.height*crop.h,0,0,visible.width,visible.height);source.width=source.height=0;}
         visible.setAttribute('role','img');visible.setAttribute('aria-label',`${english?'English translation · ':''}${entry.label}`);figure.append(visible,caption);this.container.append(figure);if(select)select(figure,visible);page.cleanup();
       }
-      if(generation===this.generation)this.status.textContent=missing?`${missing} lesson page${missing===1?'':'s'} need another book PDF.`:english?'English translations only.':`${entries.length} lesson pages · turn your phone sideways for a spread.`;
+      if(generation===this.generation)this.status.textContent=missing?`${missing} lesson page${missing===1?'':'s'} need another book PDF.`:english?'English translations only.':`${entries.length} lesson pages · fits your available screen width.`;
     }catch(error){if(error.name!=='RenderingCancelledException'&&generation===this.generation){this.status.textContent='Could not display these pages. Reopen the app or check your stored PDF.';throw error;}}
   }
   clear(){this.cancelRender();this.container.replaceChildren();}
