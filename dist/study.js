@@ -5,16 +5,17 @@ import {verifyBookLayout} from './book-layout.js';
 import {connectPlaybackControls} from './playback-controls.js';
 import {observeAudioHealth} from './audio-health.js';
 import {APP_VERSION} from './updates.js';
-import {shadowingPass,shadowingRange,shadowingPosition} from './shadowing.js';
+import {shadowingPass} from './shadowing.js';
+import {selectionState,selectionQueue,selectionStart,validateSelection} from './shadow-selection.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
 
 export async function connectStudy(api){
   let course=await api.read('state','course')||{books:{},segments:{},rate:1};
-  course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.shadowing ||= {};course.rate=Number(course.rate)||1;
-  let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='',shadowMode='cumulative';
+  course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.shadowing ||= {};course.practice ||= {};course.rate=Number(course.rate)||1;
+  let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='';
   const player=api.player||$('player');
-  let reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0,shadowSingleText=true;
+  let reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0,shadowOwner=null,lastCheckpoint=0;
   const audioHealth=observeAudioHealth(player,{
     onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent=playbackFailure(player)?'Audio output failed. Tap Play to reconnect and continue.':'Playback was interrupted. Tap Play to reconnect and continue.';}},
     onStalled:()=>{needsReconnect=true;pauseAudio('stalled clock');$('play-status').textContent='Audio stopped advancing. Tap Play to reconnect and continue.';}
@@ -32,13 +33,13 @@ export async function connectStudy(api){
   function userSeekDuringReconnect(time){
     if(!reconnecting)return;
     if(recoveryPosition)recoveryPosition.time=time;
-    if(session?.kind==='sentence'||session?.kind==='preview'||session?.kind==='shadow'||(api.getProgress().step===4&&['sentence','cumulative'].includes(shadowMode)))freePlayback();
+    if(session?.kind==='sentence'||session?.kind==='preview'||api.getProgress().step===4)freePlayback();
     reconnectSession=session;audioHealth.record('user seek during reconnect');
   }
   function userSeek(time){
 
     if(reconnecting){userSeekDuringReconnect(time);return;}
-    if(session?.kind==='sentence'||session?.kind==='preview'||session?.kind==='shadow'||api.getProgress().step===4&&sentencePractice())freePlayback();
+    if(session?.kind==='sentence'||session?.kind==='preview'||api.getProgress().step===4)freePlayback();
   }
   $('audio-select').insertAdjacentHTML('afterend',`<label class="field speed-field">Playback speed<select id="speed"><option value="0.75">0.75×</option><option value="0.9">0.9×</option><option value="1">1×</option><option value="1.1">1.1×</option><option value="1.25">1.25×</option></select></label>`);
   $('player').insertAdjacentHTML('afterend',`<section id="sentence-tools" hidden aria-label="Sentence timings"><div class="sentence-tool-actions"><button id="edit-sentence-mode" class="secondary" aria-expanded="false" aria-controls="sentence-timing-options">Edit sentence</button><button id="add-sentence-mode" class="secondary" aria-expanded="false" aria-controls="add-sentence-options">Add sentence</button></div><div id="sentence-timing-options" hidden>
@@ -48,14 +49,7 @@ export async function connectStudy(api){
     <div class="backup-actions"><button id="preview-sentence" class="secondary">Preview</button><button id="save-sentence" class="primary">Save sentence</button><button id="reset-sentence-edit" class="text-button">Discard changes</button></div>
     <p id="timing-edit-status" class="note" role="status">Adjust a time, preview the sentence, then save.</p>
   </div><div id="sentence-tools-extra" hidden><button id="mark-boundary" class="text-button">Split at playhead</button><p id="sentence-tools-status" class="note" role="status"></p></div></section>`);
-  $('player').insertAdjacentHTML('beforebegin',`<div id="routine-audio"><div id="review-controls" hidden><details><summary>Review options</summary><label class="field">Previous lessons<select id="review-count"><option value="3">Last three</option><option value="2">Last two</option></select></label></details><p id="review-list" class="note"></p><button id="start-review" class="primary">Play review</button></div><div id="blind-controls" hidden><button id="start-blind" class="primary">Listen twice</button><p id="blind-status" class="note" role="status">Each listen includes both readings when recorded. The book stays hidden.</p></div><div id="shadow-controls" hidden><label class="field">Practice mode<select id="shadow-mode"><option value="cumulative">Build the dialogue sentence by sentence</option><option value="sentence">Single-sentence practice</option><option value="with">Speak along with text</option><option value="without">Speak along without text</option></select></label><div id="cumulative-controls">
-    <div class="shadow-sentence-heading"><button id="shadow-sentence-back" class="secondary" type="button" aria-label="Previous sentence to learn">←</button><h3 id="shadow-sentence-status"></h3><button id="shadow-sentence-next" class="secondary" type="button" aria-label="Next sentence to learn">→</button></div>
-    <div id="shadow-sentences" class="shadow-sentences" role="group" aria-label="Sentences to learn"></div>
-    <div class="shadow-stages">
-      <div class="shadow-stage-group" role="group" aria-labelledby="shadow-new-label"><p id="shadow-new-label"></p><div class="shadow-stage-buttons"><button class="secondary" type="button" data-shadow-stage="0">With text</button><button class="secondary" type="button" data-shadow-stage="1">Without text</button></div></div>
-      <div id="shadow-together" class="shadow-stage-group" role="group" aria-labelledby="shadow-together-label"><p id="shadow-together-label"></p><div class="shadow-stage-buttons"><button class="secondary" type="button" data-shadow-stage="2">With text</button><button class="secondary" type="button" data-shadow-stage="3">Without text</button></div></div>
-    </div>
-    <p id="shadow-pass-status" class="note" role="status"></p><p id="shadow-pass-instruction" class="note"></p><div class="shadow-pass-actions"><button id="shadow-pass-play" class="primary" type="button">Play practice</button><button id="shadow-pass-next" class="secondary" type="button">Without text →</button></div><button id="shadow-pass-restart" class="text-button" type="button">Start again at sentence 1</button></div><div id="sentence-controls"><p id="sentence-status" class="note" role="status"></p><p id="sentence-count-status" class="note" role="status" hidden></p><div class="sentence-actions"><button id="sentence-back" class="secondary" aria-label="Previous sentence">←</button><button id="sentence-play" class="primary">Repeat sentence</button><button id="sentence-next" class="secondary" aria-label="Next sentence">→</button></div><details><summary>Practice options</summary><label class="check"><input id="sentence-auto" type="checkbox"> Continue after a pause</label><label class="field">Time to repeat<select id="sentence-gap"><option value="match">Length of the sentence</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label><div id="sentence-list" class="sentence-list"></div><details id="timing-editor"><summary>Edit all sentence timings</summary><p class="note">Times are seconds: one start, end pair per line. Adjust a cut if it interrupts a sentence. Timings save on this device.</p><textarea id="timing-text" rows="7" aria-label="Sentence start and end times" placeholder="0.00, 3.20\n3.60, 6.10"></textarea><div class="backup-actions"><button id="save-timings" class="secondary">Save timings</button></div></details><button id="use-saved-timings" class="text-button" hidden>Use saved custom timings</button><button id="use-prepared" class="text-button" hidden>Use prepared sentence timings</button><button id="detect-sentences" class="text-button">Detect pauses for a different recording</button></details></div></div><p id="play-status" class="note" role="status"></p></div>`);
+  $('player').insertAdjacentHTML('beforebegin',`<div id="routine-audio"><div id="review-controls" hidden><details><summary>Review options</summary><label class="field">Previous lessons<select id="review-count"><option value="3">Last three</option><option value="2">Last two</option></select></label></details><p id="review-list" class="note"></p><button id="start-review" class="primary">Play review</button></div><div id="blind-controls" hidden><button id="start-blind" class="primary">Listen twice</button><p id="blind-status" class="note" role="status">Each listen includes both readings when recorded. The book stays hidden.</p></div><div id="shadow-controls" hidden><div id="sentence-controls"><p id="sentence-status" class="note" role="status"></p><p id="sentence-count-status" class="note" role="status" hidden></p><div class="sentence-actions"><button id="sentence-back" class="secondary" aria-label="Previous sentence">←</button><button id="sentence-play" class="primary">Repeat sentence</button><button id="sentence-next" class="secondary" aria-label="Next sentence">→</button></div><details><summary>Practice options</summary><label class="check"><input id="sentence-auto" type="checkbox"> Continue after a pause</label><label class="field">Time to repeat<select id="sentence-gap"><option value="match">Length of the sentence</option><option value="3">3 seconds</option><option value="5">5 seconds</option><option value="8">8 seconds</option></select></label><div id="sentence-list" class="sentence-list"></div><details id="timing-editor"><summary>Edit all sentence timings</summary><p class="note">Times are seconds: one start, end pair per line. Adjust a cut if it interrupts a sentence. Timings save on this device.</p><textarea id="timing-text" rows="7" aria-label="Sentence start and end times" placeholder="0.00, 3.20\n3.60, 6.10"></textarea><div class="backup-actions"><button id="save-timings" class="secondary">Save timings</button></div></details><button id="use-saved-timings" class="text-button" hidden>Use saved custom timings</button><button id="use-prepared" class="text-button" hidden>Use prepared sentence timings</button><button id="detect-sentences" class="text-button">Detect pauses for a different recording</button></details></div></div><p id="play-status" class="note" role="status"></p></div>`);
   $('sentence-timing-options').insertAdjacentHTML('afterend',`<div id="add-sentence-options" hidden><p class="note">Enter the missing sentence’s start and end, or copy them from the playhead. If one cut contains two sentences, seek to their boundary and split it.</p><form id="add-sentence-form"><div class="timing-bound"><label class="field">Start (seconds)<input id="new-sentence-start" type="number" min="0" step="0.01" inputmode="decimal" required></label><button id="new-start-playhead" class="secondary" type="button">Use playhead</button></div><div class="timing-bound"><label class="field">End (seconds)<input id="new-sentence-end" type="number" min="0" step="0.01" inputmode="decimal" required></label><button id="new-end-playhead" class="secondary" type="button">Use playhead</button></div><div class="backup-actions"><button id="preview-new-sentence" class="secondary" type="button">Preview</button><button id="add-sentence" class="primary" type="submit">Add sentence</button><button id="cancel-new-sentence" class="text-button" type="button">Cancel</button></div></form><p id="new-sentence-status" class="note" role="status"></p></div>`);
   $('book-card').insertAdjacentHTML('beforeend',`<details id="manual-book"><summary>Book options</summary><button id="prepared-book" class="text-button">Use automatically matched pages</button><div class="reader-tools"><label class="field">Book<select id="book-select"></select></label><label class="check"><input id="spread" type="checkbox" checked> Show two pages when there’s room</label><button id="configure-pages" class="text-button">Set lesson pages</button></div><details id="page-settings"><summary>Lesson pages & English area</summary><p class="note">Use PDF page numbers, which may differ from printed book numbers. Set a lesson once; later lessons can follow the same page pattern.</p><div class="page-fields"><label class="field">First page<input id="page-start" type="number" min="1" value="1"></label><label class="field">Last page<input id="page-end" type="number" min="1" value="2"></label><label class="field">English page<input id="english-page" type="number" min="1" value="2"></label></div><label class="check"><input id="page-pattern" type="checkbox"> Estimate other lessons using this page count</label><div class="backup-actions"><button id="preview-pages" class="secondary">Preview pages</button><button id="save-pages" class="primary">Save lesson pages</button></div><hr><p class="note">Choose the English page above, then select only the translation area. This works with scanned pages and needs no text recognition.</p><div class="backup-actions"><button id="select-english" class="secondary">Select English area</button><button id="reset-crop" class="secondary">Use whole English page</button><button id="save-crop" class="primary" disabled>Save English area</button></div><label class="check"><input id="reuse-crop" type="checkbox" checked> Use this English layout for other lessons</label><p id="mapping-status" class="note" role="status"></p></details></details><div id="recall-controls" hidden><button id="reveal-german" class="secondary">Show German to check</button><p class="note">Try saying the German before revealing the full lesson.</p></div><p id="reader-status" class="note" role="status"></p><div id="pdf-pages" class="pdf-pages"></div>`);
   document.body.insertAdjacentHTML('beforeend',`<div id="mini-player" hidden><button id="mini-play" class="primary" aria-label="Play recording">▶</button><div><span id="mini-title"></span><small id="mini-time">0:00</small></div><button id="mini-repeat" class="secondary" aria-label="Repeat current sentence or recording">↺</button></div>`);
@@ -69,67 +63,68 @@ export async function connectStudy(api){
   const bookSettings=()=>{const book=getBook();if(!book)return null;return course.books[book.id] ||= {pages:{}};};
   const audioLesson=()=>matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===api.getActiveAudioId()));
   const sentences=()=>{const id=api.getActiveAudioId(),prepared=preparedSentences(audioLesson());return course.segmentMode[id]==='custom'&&course.segments[id]?course.segments[id]:prepared.length?prepared:course.segments[id]||[];};
-  const currentPass=()=>shadowingPass(sentences().length,course.shadowing[api.getActiveAudioId()]||0);
-  const sentencePractice=()=>['sentence','cumulative'].includes(shadowMode);
   const preparedPlan=recall=>lessonPages(api.getIndex(),api.getLibrary(),api.getProgress().lesson,recall);
   const hasPreparedBook=()=>api.getLibrary().some(file=>matchedSource(api.getIndex(),file)||matchedCombinedBook(api.getIndex(),file));
   const dialogue=(id,includeRepeat=api.getProgress().step===1)=>preparedDialogue(matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id)),includeRepeat)||{start:0,end:player.duration};
   function saveCourse(){const snapshot=structuredClone(course);const attempt=courseQueue.then(()=>api.write('state','course',snapshot));courseQueue=attempt.catch(()=>{});return attempt.catch(error=>{api.notice('Could not save lesson setup. Check storage and export a backup.');throw error;});}
   function mapping(lesson){const settings=bookSettings();if(!settings)return null;if(settings.pages?.[lesson])return {...settings.pages[lesson],estimated:false};if(settings.pattern){const {baseLesson,basePage,span}=settings.pattern;const start=basePage+(lesson-baseLesson)*span;if(start<1)return null;const layout=settings.layout||{offset:Math.min(1,span-1),crop:fullCrop};return {start,end:start+span-1,englishPage:start+layout.offset,crop:layout.crop,estimated:true};}return null;}
-  function stopSession(){session=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');player.setPlaybackEnd?.(null);}
+  function stopSession(){checkpointShadowing();session=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');player.setPlaybackEnd?.(null);}
   function reviewTracks(){const p=api.getProgress(),n=Number($('review-count').value);return Array.from({length:Math.min(n,p.lesson-1)},(_,i)=>p.lesson-Math.min(n,p.lesson-1)+i).map(lesson=>({lesson,file:api.getLibrary().find(x=>x.id===p.tracks[lesson]&&x.kind==='audio')}));}
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
   function setShadowText(id,text){if($(id).textContent!==text)$(id).textContent=text;}
-  function refreshShadowing(){
-    const pass=currentPass(),count=sentences().length,cumulative=shadowMode==='cumulative';$('sentence-controls').classList.toggle('cumulative',cumulative);
-    $('sentence-auto').closest('label').hidden=cumulative;$('sentence-gap').closest('label').hidden=cumulative;
-    $('cumulative-controls').hidden=shadowMode!=='cumulative';
-    setShadowText('shadow-sentence-status',pass?`Learn sentence ${pass.sentence+1} of ${count}`:'Learn the dialogue');
-    const navigation=$('shadow-sentences');
-    if(navigation.children.length!==count)navigation.replaceChildren(...Array.from({length:count},(_,sentence)=>{
-      const button=document.createElement('button');button.type='button';button.className='secondary';button.textContent=sentence+1;button.setAttribute('aria-label',`Learn sentence ${sentence+1} of ${count}`);
-      button.addEventListener('click',()=>moveShadowing(shadowingPosition(sentence)).catch(error=>api.notice(error.message)));return button;
-    }));
-    [...navigation.children].forEach((button,sentence)=>{if(sentence===pass?.sentence)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');});
-    $('shadow-sentence-back').disabled=!pass||pass.sentence===0;$('shadow-sentence-next').disabled=!pass||pass.sentence===count-1;
-    setShadowText('shadow-new-label',pass?`Learn sentence ${pass.sentence+1}`:'Learn this sentence');
-    setShadowText('shadow-together-label',pass?`Build from the beginning · Sentences 1–${pass.sentence+1}`:'Build from the beginning');
-    $('shadow-together').hidden=!pass||pass.sentence===0;
-    $('shadow-new-label').parentElement.classList.toggle('active',!!pass&&!pass.cumulative);$('shadow-together').classList.toggle('active',!!pass&&pass.cumulative);
-    for(const button of document.querySelectorAll('[data-shadow-stage]')){const stage=Number(button.dataset.shadowStage);button.disabled=!pass;button.setAttribute('aria-pressed',String(stage===pass?.part));}
-    setShadowText('shadow-pass-status',pass?`${pass.label}${pass.cumulative?' together':''} · ${pass.withText?'With text':'Without text'}`:'Add sentence timings to start cumulative shadowing.');
-    setShadowText('shadow-pass-instruction',pass?`Speak along with the audio${pass.withText?', following the text.':', keeping the text hidden.'} Repeat until you’re ready to continue.`:'');
-    $('shadow-pass-next').disabled=!pass||pass.final;$('shadow-pass-play').disabled=!pass;
-    setShadowText('shadow-pass-next',!pass||pass.final?'Final stage':pass.part===pass.stageCount-1?'Next sentence →':pass.withText?'Without text →':'Practice together →');
-    setShadowText('shadow-pass-play',session?.kind==='shadow'&&!player.paused?'Pause':'Play practice');
-    if($('shadow-simple')){
-      const withText=shadowMode==='cumulative'?!!pass?.withText:shadowMode==='sentence'?shadowSingleText:shadowMode==='with';
-      setShadowText('shadow-coverage',cumulative&&pass?`Learning sentence ${pass.sentence+1} of ${count} · ${pass.label}${pass.cumulative?' together':''}`:shadowMode==='sentence'?`Sentence ${segmentIndex+1} of ${count}`:'Whole dialogue');
-      $('shadow-text').checked=withText;
-      setShadowText('shadow-simple-play',player.paused?'Play':'Pause');
-      $('shadow-simple-play').disabled=$('shadow-simple-repeat').disabled=!api.getActiveAudioId()||sentencePractice()&&!pass;
-      $('shadow-simple-next').disabled=cumulative?(!pass||pass.final):shadowMode==='sentence'?segmentIndex>=count-1:true;
-      $('shadow-simple-back').disabled=cumulative?(!pass||pass.index===0):shadowMode==='sentence'?segmentIndex===0:true;
-      $('shadow-simple-next').setAttribute('aria-label',cumulative?$('shadow-pass-next').textContent:'Next sentence');$('shadow-simple-next').title=$('shadow-simple-next').getAttribute('aria-label');
+  function practiceState(){
+    const id=api.getActiveAudioId(),lesson=api.getProgress().lesson,key=`${lesson}:${id}`,spans=sentences();
+    let saved=course.practice[key];
+    if(!saved&&Number.isInteger(course.shadowing[id])){
+      const pass=shadowingPass(spans.length,course.shadowing[id]);
+      saved=selectionState(spans);if(pass){saved.selected=Array.from({length:pass.last-pass.first+1},(_,i)=>i+pass.first);saved.index=pass.first;saved.time=spans[pass.first].start;}
     }
+    if(saved&&saved.spans.length===spans.length&&saved.spans.every((span,i)=>span.start===spans[i].start&&span.end===spans[i].end))return course.practice[key]=saved;
+    return course.practice[key]=selectionState(spans,saved);
   }
-  async function shadowPlay(repeat=false){
-    if(!repeat&&!player.paused){pauseAudio('user paused');return;}
-    if(!repeat&&session&&!session.finishing&&['shadow','sentence'].includes(session.kind))return play(true);
-    if(shadowMode==='cumulative')return startShadowing();
-    if(shadowMode==='sentence')return startSentence();
-    if(repeat)seekTo(dialogue(api.getActiveAudioId()).start);return play();
+  function enterShadowing(){
+    shadowOwner={key:`${api.getProgress().lesson}:${api.getActiveAudioId()}`,id:api.getActiveAudioId()};
+    const state=practiceState();segmentIndex=state.index;
+    if(player.readyState>=1&&sentences().length)seekTo(state.time);
   }
-  async function moveShadowing(position){
-    stopSession();const pass=shadowingPass(sentences().length,position);if(!pass)return;
-    course.shadowing[api.getActiveAudioId()]=pass.index;segmentIndex=pass.last;
-    await update();await saveCourse();
+  function checkpointShadowing(){
+    if(session?.kind!=='selection'||!shadowOwner||session.owner!==shadowOwner.key||api.getActiveAudioId()!==shadowOwner.id)return;
+    const state=course.practice[shadowOwner.key],span=session.span;if(!state||!span)return;
+    state.index=span.index;state.time=Math.max(state.spans[state.index]?.start||0,Math.min(player.currentTime,state.spans[state.index]?.end||0));
+    const unchanged=state.selected.length===session.queue.length&&session.queue.every((cut,i)=>cut.index===state.selected[i]);
+    state.completed=!!session.completed||!unchanged;lastCheckpoint=performance.now();saveCourse().catch(()=>{});
   }
-  async function startShadowing(){
-    player.unlock?.().catch(()=>{});const pass=currentPass(),span=shadowingRange(sentences(),pass?.index);if(!span)return;
-    stopSession();segmentIndex=pass.last;const active=session={kind:'shadow',span,pass};player.loop=false;$('repeat').checked=false;refreshSentences();
-    try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}
+  function refreshShadowing(){
+    if(!$('shadow-simple')||api.getProgress().step!==4)return;
+    const state=practiceState(),count=state.spans.length;
+    const current=session?.kind==='selection'?session.span?.index:state.index;
+    setShadowText('shadow-coverage',state.selected.length?`${state.selected.length} of ${count} sentences selected${state.selected.includes(current)?` · Sentence ${current+1}`:''}`:'Check a sentence to include it in playback.');
+    $('shadow-loop').checked=state.repeat;
+    setShadowText('shadow-simple-play',player.paused?'Play':'Pause');
+    $('shadow-simple-play').disabled=player.paused&&(!api.getActiveAudioId()||!state.selected.length);
+    $('shadow-loop').disabled=!api.getActiveAudioId();
+    $('mini-repeat').hidden=true;
+  }
+  async function shadowPlay(){
+    if(!player.paused){pauseAudio('user paused');checkpointShadowing();return;}
+    player.unlock?.().catch(()=>{});checkpointShadowing();
+    const state=practiceState(),queue=selectionQueue(state),start=selectionStart(state,queue);if(!start)return;
+    stopSession();state.completed=false;const active=session={kind:'selection',owner:shadowOwner.key,queue,cursor:start.cursor,span:queue[start.cursor]};
+    player.loop=false;$('repeat').checked=false;
+    try{await readyPlayer();if(session!==active)return;seekTo(start.time);await play(true);scheduleBoundary();refreshSentenceButtons();}
     catch(error){if(session===active){stopSession();api.notice(error.message);}}
+  }
+  async function finishSelection(active){
+    active.finishing=true;pauseAudio('selected sentence complete');seekTo(active.span.end);
+    let next=active.cursor+1;
+    if(next>=active.queue.length){
+      if(course.practice[active.owner]?.repeat)next=0;
+      else{active.completed=true;checkpointShadowing();$('play-status').textContent='Selection complete.';mini();return;}
+    }
+    // Each checked interval gets its own output-clock stop. Never play unchecked gaps.
+    active.cursor=next;active.span=active.queue[next];active.finishing=false;
+    seekTo(active.span.start);checkpointShadowing();
+    if(session!==active)return;await play(true);if(session===active)scheduleBoundary();
   }
   function refreshSentences(){
     const spans=sentences(),count=dialogueCount(audioLesson(),spans.length);
@@ -143,52 +138,60 @@ export async function connectStudy(api){
     if(document.activeElement!==$('timing-text'))$('timing-text').value=spans.map(x=>`${x.start.toFixed(2)}, ${x.end.toFixed(2)}`).join('\n');
     if($('shadow-edit-sentence')){
       const select=$('shadow-edit-sentence');if(select.options.length!==spans.length)select.replaceChildren(...spans.map((_,i)=>new Option(`Sentence ${i+1}`,String(i))));select.value=String(segmentIndex);
-      $('shadow-individual-controls').hidden=!sentencePractice();$('shadow-individual-play').disabled=$('shadow-individual-repeat').disabled=!current;
+      $('shadow-individual-controls').hidden=false;$('shadow-individual-play').disabled=$('shadow-individual-repeat').disabled=!current;
     }
     refreshTimingEditor();
   }
   function selectSentence(index){stopSession();segmentIndex=index;refreshSentences();}
   function refreshSentenceButtons(){
+    if(api.getProgress().step!==4)return;
+    const state=practiceState(),playing=session?.kind==='selection'?session.span?.index:state.selected.includes(state.index)?state.index:-1;
     for(const row of $('sentence-list').children){
-      const index=Number(row.dataset.index),selected=index===segmentIndex,pass=currentPass();
-      row.hidden=shadowMode==='cumulative'&&(!pass||index<pass.first||index>pass.last)||shadowMode==='sentence'&&!$('shadow-options')?.open&&index!==segmentIndex;
-      row.classList.toggle('selected',selected);row.querySelector('.sentence-select').setAttribute('aria-pressed',String(selected));
-      const button=row.querySelector('.sentence-row-play'),label=selected&&!player.paused?'Pause':'Play';
-      if(button.textContent!==label)button.textContent=label;
-      button.setAttribute('aria-label',`${label} from sentence ${index+1}`);button.title=shadowMode==='cumulative'?'Play this sentence and pause at its end':'Play from this sentence and continue';
+      const index=Number(row.dataset.index);row.classList.toggle('selected',index===playing);
+      row.querySelector('.sentence-check').checked=state.selected.includes(index);
+      if(index===playing)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');
+      row.querySelector('.sentence-edit').setAttribute('aria-expanded',String(sentenceToolsOpen&&segmentIndex===index&&$('shadow-editor').parentElement===row));
     }
   }
+  function closeRowEditor(){
+    if(!$('shadow-editor'))return;
+    $('shadow-options-content').append($('playback-controls'),$('sentence-tools'));
+    $('shadow-editor').hidden=true;audioCard.append($('shadow-editor'));sentenceToolsOpen=false;
+  }
+  function editRow(index){
+    stopSession();closeRowEditor();segmentIndex=index;sentenceToolMode='edit';sentenceToolsOpen=true;
+    const row=$('sentence-list').querySelector(`[data-index="${index}"]`);if(!row)return;
+    row.append($('shadow-editor'));$('shadow-editor').append($('playback-controls'),$('sentence-tools'));$('shadow-editor').hidden=false;
+    refreshTimingEditor();refreshSentenceButtons();
+  }
   function refreshSentenceRows(spans){
-    const list=$('sentence-list'),visible=api.getProgress().step===4&&(shadowMode==='sentence'&&shadowSingleText||shadowMode==='with'||shadowMode==='cumulative'&&currentPass()?.withText);list.hidden=!visible;
+    const list=$('sentence-list'),visible=api.getProgress().step===4;list.hidden=!visible;
     if(!visible){sentenceRowsKey='';sentenceRender++;return;}
     const id=api.getActiveAudioId(),lesson=audioLesson(),custom=course.segmentMode[id]==='custom',library=api.getLibrary();
-    const pass=currentPass(),first=shadowMode==='cumulative'?pass?.first:shadowMode==='sentence'&&!$('shadow-options')?.open?segmentIndex:0,last=shadowMode==='cumulative'?pass?.last:shadowMode==='sentence'&&!$('shadow-options')?.open?segmentIndex:spans.length-1;
-    const key=JSON.stringify([id,spans,custom,first,last,library.filter(file=>file.kind==='pdf').map(file=>[file.id,file.verifiedBookLayout])]);
+    const key=JSON.stringify([id,spans,custom,library.filter(file=>file.kind==='pdf').map(file=>[file.id,file.verifiedBookLayout])]);
     if(key===sentenceRowsKey){refreshSentenceButtons();return;}
+    const editing=$('shadow-editor')&&!$('shadow-editor').hidden?segmentIndex:null;closeRowEditor();
     sentenceRowsKey=key;const ticket=++sentenceRender,groups=[],items=sentenceBookItems(lesson,spans,custom);
     list.replaceChildren(...spans.map((span,i)=>{
-      if(i<first||i>last)return null;
       const row=document.createElement('div');row.className='sentence-row';row.dataset.index=i;row.setAttribute('role','listitem');
-      const heading=document.createElement('button');heading.type='button';heading.className='sentence-select';
-      const bookLabel=items[i].length&&(items[i].length!==1||items[i][0]!==i+1)?` · Book item${items[i].length>1?'s':''} ${items[i].join(', ')}`:'';
-      heading.textContent=`Sentence ${i+1}${bookLabel}`;heading.addEventListener('click',()=>selectSentence(i));
+      const label=document.createElement('label');label.className='sentence-choice';
+      const check=document.createElement('input');check.type='checkbox';check.className='sentence-check';check.setAttribute('aria-label',`Include sentence ${i+1} in playback`);
+      const number=document.createElement('span');number.className='sentence-number';number.textContent=i+1;label.append(check,number);
+      check.addEventListener('change',()=>{const state=practiceState(),selected=new Set(state.selected);check.checked?selected.add(i):selected.delete(i);state.selected=[...selected].sort((a,b)=>a-b);state.completed=true;saveCourse().catch(()=>{});refreshShadowing();refreshSentenceButtons();});
       const text=document.createElement('div');text.className='sentence-text';text.lang='de';
-      const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i]);
-      const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':'No book text matched to this cut. Open Options for the full lesson pages.';text.append(note);
+      const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i]).map(entry=>({...entry,crop:{...entry.crop,x:0,w:1}}));
+      const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':'No book text matched to this cut. The full pages are in Read along.';text.append(note);
       if(entries.length)groups.push({entries,container:text,note});
-      const actions=document.createElement('div');actions.className='sentence-row-actions';
-      const playButton=document.createElement('button');playButton.type='button';playButton.className='secondary sentence-row-play';playButton.textContent='Play';playButton.title='Play from this sentence and continue';
-      playButton.addEventListener('click',()=>{if(segmentIndex===i&&!player.paused)pauseAudio('user paused');else playFromSentence(i);});
-      const repeatButton=document.createElement('button');repeatButton.type='button';repeatButton.className='secondary sentence-row-repeat';repeatButton.textContent='Repeat';repeatButton.title='Replay this sentence and pause at its end';repeatButton.setAttribute('aria-label',`Repeat sentence ${i+1}`);
-      repeatButton.addEventListener('click',()=>{selectSentence(i);startSentence();});
-      actions.append(playButton,repeatButton);row.append(heading,text,actions);return row;
-    }).filter(Boolean));
+      const edit=document.createElement('button');edit.type='button';edit.className='text-button sentence-edit';edit.textContent='Edit';edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.setAttribute('aria-expanded','false');
+      edit.addEventListener('click',()=>{if(!$('shadow-editor').hidden&&segmentIndex===i){stopSession();closeRowEditor();refreshSentenceButtons();}else editRow(i);});
+      row.append(label,text,edit);return row;
+    }));
+    if(editing!==null&&editing<spans.length)editRow(editing);
     refreshSentenceButtons();
     const current=()=>ticket===sentenceRender&&!list.hidden;
-    reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. Open Options for the lesson pages.';});
+    reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. The full pages are in Read along.';});
   }
   async function playFromSentence(index){
-    if(shadowMode==='cumulative'){selectSentence(index);return startSentence();}
     player.unlock?.().catch(()=>{});selectSentence(index);const span=sentences()[index];if(!span)return;
     freePlayback();const active=session,id=api.getActiveAudioId();
     try{await readyPlayer();if(session!==active||api.getActiveAudioId()!==id)return;seekTo(span.start);await play();}
@@ -198,9 +201,9 @@ export async function connectStudy(api){
   async function play(bounded=false){
     player.unlock?.().catch(()=>{});
     if(reconnecting&&!bounded)return false;
-    if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4&&sentencePractice())freePlayback();return reconnectAudio({resume:true});}
+    if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4)freePlayback();return reconnectAudio({resume:true});}
     const request=++playRequest,source=player.getAttribute('src');let timer;audioHealth.expectPlay();
-    if(!bounded&&api.getProgress().step===4&&sentencePractice())freePlayback();
+    if(!bounded&&api.getProgress().step===4)freePlayback();
     armAudioBoundary();
     try{
       await Promise.race([player.play(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('The browser did not start playback within 12 seconds.')),12000);})]);
@@ -221,7 +224,7 @@ export async function connectStudy(api){
   async function startSentence(){player.unlock?.().catch(()=>{});const span=sentences()[segmentIndex];if(!span)return;clearTimeout(gapTimer);const active=session={kind:'sentence'};player.loop=false;$('repeat').checked=false;try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();}catch(error){stopSession();api.notice(error.message);}}
   function refreshTimingEditor(force=false){
     const span=sentences()[segmentIndex];
-    $('sentence-tools').hidden=api.getProgress().step!==4||!sentencePractice()||!api.getActiveAudioId();
+    $('sentence-tools').hidden=api.getProgress().step!==4||!api.getActiveAudioId();
     $('edit-sentence-mode').disabled=!span;
     if(!span)sentenceToolMode='add';
     const editing=sentenceToolsOpen&&sentenceToolMode==='edit';
@@ -329,6 +332,9 @@ export async function connectStudy(api){
     const cap=routineDialogue();
     // Review remains bounded even if output recovery loses the normal session or seek events.
     if(cap&&player.currentTime>=cap.end){
+      // Seeking can synchronously refresh the controls while the next listen
+      // awaits metadata. Its finishing session still owns this transition.
+      if(session?.finishing)return;
       if(session&&!session.finishing&&session.span){finishRange().catch(error=>api.notice(error.message));}
       else{pauseAudio('dialogue complete');seekTo(cap.end);session=null;$('play-status').textContent='Dialogue complete. Restart review to continue the sequence.';}
       return;
@@ -336,7 +342,7 @@ export async function connectStudy(api){
     const span=session?.kind==='sentence'?sentences()[segmentIndex]:session?.span;
     if(span&&!player.paused&&player.currentTime>=span.end)finishRange().catch(error=>api.notice(error.message));
   }
-  function routineDialogue(){const step=api.getProgress().step;return [0,1,3].includes(step)||(step===4&&!sentencePractice())?preparedDialogue(audioLesson(),step===1):null;}
+  function routineDialogue(){const step=api.getProgress().step;return [0,1,3].includes(step)?preparedDialogue(audioLesson(),step===1):null;}
   function restoreRoutineSession(){
     if(session?.finishing&&!session.span&&session.expectedId===api.getActiveAudioId()){
       session.span=dialogue(session.expectedId,session.kind==='blind');session.finishing=false;
@@ -345,8 +351,8 @@ export async function connectStudy(api){
   function finishSentence(){
     if(session?.kind!=='sentence'||session.finishing)return;session.finishing=true;clearTimeout(boundaryTimer);pauseAudio('sentence complete');
     const span=sentences()[segmentIndex];if(span)seekTo(span.end);
-    $('play-status').textContent=shadowMode==='cumulative'?'Sentence complete. Repeat it with the audio, or return to Play practice.':`Your turn: repeat sentence ${segmentIndex+1}. Play continues; Repeat sentence replays it.`;
-    if(shadowMode==='sentence'&&$('sentence-auto').checked&&segmentIndex<sentences().length-1){
+    $('play-status').textContent=`Sentence ${segmentIndex+1} complete.`;
+    if($('sentence-auto').checked&&segmentIndex<sentences().length-1){
       const seconds=$('sentence-gap').value==='match'?Math.max(1,span.end-span.start):Number($('sentence-gap').value);
       gapTimer=setTimeout(()=>{if(session?.kind==='sentence'&&$('sentence-auto').checked){segmentIndex++;refreshSentences();startSentence();}},seconds*1000);
     }
@@ -371,12 +377,8 @@ export async function connectStudy(api){
   async function finishRange(){
     const active=session;if(!active||active.finishing)return;
     if(active.kind==='sentence'){finishSentence();return;}
+    if(active.kind==='selection'){await finishSelection(active);return;}
     active.finishing=true;clearTimeout(boundaryTimer);
-    if(active.kind==='shadow'){
-      pauseAudio('shadowing pass complete');seekTo(active.span.end);refreshShadowing();
-      $('play-status').textContent=active.pass.final?'Whole dialogue complete without text. Repeat it or continue to Exercises.':active.pass.part===active.pass.stageCount-1?'Sentence practice complete. Repeat it or move to the next sentence.':'Practice complete. Repeat it or choose the next stage when you’re ready.';
-      mini();return;
-    }
     // A same-file repeat can seek while playing, keeping Android's output session alive.
     const rewinding=active.kind==='blind'&&active.played<1||!['preview','review','blind'].includes(active.kind)&&$('repeat').checked;
     if(!rewinding)pauseAudio('range complete');
@@ -400,13 +402,13 @@ export async function connectStudy(api){
   // arrive late or out of order, so they cannot establish user intent.
   player.addEventListener('seeking',scheduleBoundary);
   player.addEventListener('seeked',()=>{scheduleBoundary();});
-  player.addEventListener('pause',()=>{if(player.paused)clearTimeout(boundaryTimer);else scheduleBoundary();mini();});
-  player.addEventListener('timeupdate',()=>{mini();checkBoundary();});
+  player.addEventListener('pause',()=>{if(player.paused){clearTimeout(boundaryTimer);checkpointShadowing();}else scheduleBoundary();mini();});
+  player.addEventListener('timeupdate',()=>{mini();checkBoundary();if(!player.paused&&performance.now()-lastCheckpoint>5000)checkpointShadowing();});
   player.addEventListener('play',()=>{
     if(reconnecting||player.paused){mini();return;}
     mini();clearTimeout(gapTimer);$('play-status').textContent='';
     // Playback intent is set by the button action, not the timing of Safari's play event.
-    if(session?.finishing){if(api.getProgress().step===4&&sentencePractice())freePlayback();else session.finishing=false;}
+    if(session?.finishing&&session.kind!=='selection'){if(api.getProgress().step===4)freePlayback();else session.finishing=false;}
     if(!session&&[0,1,3,4].includes(api.getProgress().step)){
       session={kind:'lesson',span:dialogue(api.getActiveAudioId())};
       if(player.currentTime<session.span.start||player.currentTime>=session.span.end)seekTo(session.span.start);
@@ -420,44 +422,34 @@ export async function connectStudy(api){
   $('review-count').addEventListener('change',refreshReview);
   $('start-blind').addEventListener('click',async()=>{let active;try{player.unlock?.().catch(()=>{});stopSession();const id=api.getProgress().tracks[api.getProgress().lesson];if(!id){api.notice('Import the recording for this lesson first.');return;}active=session={kind:'blind',played:0,id};player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Listen 1 of 2…';await beginRange(active,id);}catch(error){if(session===active){pauseAudio('blind listening failed');api.notice(error.message);}}});
   $('sentence-play').addEventListener('click',startSentence);
-  $('shadow-pass-play').addEventListener('click',()=>{if(session?.kind==='shadow'&&!player.paused)pauseAudio('user paused');else startShadowing();});
-  $('shadow-pass-next').addEventListener('click',()=>moveShadowing((currentPass()?.index||0)+1).catch(error=>api.notice(error.message)));
-  $('shadow-sentence-back').addEventListener('click',()=>moveShadowing(shadowingPosition((currentPass()?.sentence||0)-1)).catch(error=>api.notice(error.message)));
-  $('shadow-sentence-next').addEventListener('click',()=>moveShadowing(shadowingPosition((currentPass()?.sentence||0)+1)).catch(error=>api.notice(error.message)));
-  for(const button of document.querySelectorAll('[data-shadow-stage]'))button.addEventListener('click',()=>moveShadowing(shadowingPosition(currentPass()?.sentence||0,Number(button.dataset.shadowStage))).catch(error=>api.notice(error.message)));
-  $('shadow-pass-restart').addEventListener('click',()=>moveShadowing(0).catch(error=>api.notice(error.message)));
   $('sentence-back').addEventListener('click',()=>{stopSession();segmentIndex=Math.max(0,segmentIndex-1);refreshSentences();});$('sentence-next').addEventListener('click',()=>{stopSession();segmentIndex=Math.min(sentences().length-1,segmentIndex+1);refreshSentences();});
   $('sentence-auto').addEventListener('change',()=>{if(!$('sentence-auto').checked)clearTimeout(gapTimer);});
-  $('shadow-mode').addEventListener('change',()=>{stopSession();shadowMode=$('shadow-mode').value;$('sentence-controls').hidden=!sentencePractice();$('cumulative-controls').hidden=shadowMode!=='cumulative';update();});
   $('speed').value=String(course.rate);player.playbackRate=course.rate;$('speed').addEventListener('change',()=>{course.rate=Number($('speed').value);player.playbackRate=course.rate;saveCourse().catch(()=>{});});
   $('repeat').addEventListener('change',()=>{if(session?.kind==='blind'||session?.kind==='review')stopSession();if(session?.kind==='sentence'){player.loop=false;$('repeat').checked=false;api.notice('Use Repeat sentence for sentence practice.');}});
   $('mini-play').addEventListener('click',()=>{if(api.getProgress().step===4){shadowPlay();return;}clearTimeout(gapTimer);if(!player.paused){pauseAudio('user paused');return;}play();});
-  $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step===4&&shadowMode==='cumulative')startShadowing();else if(api.getProgress().step===4&&sentencePractice())startSentence();else{seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
+  $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step!==4){seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeek,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
   const audioCard=document.querySelector('.audio-card');
-  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-simple-controls"><button id="shadow-simple-back" class="secondary" type="button" aria-label="Previous shadowing stage" title="Previous shadowing stage">←</button><label class="shadow-text-check"><input id="shadow-text" type="checkbox" checked><span>Show text</span></label><button id="shadow-simple-play" class="primary" type="button">Play</button><button id="shadow-simple-repeat" class="secondary" type="button">Repeat</button><button id="shadow-simple-next" class="secondary" type="button" aria-label="Next practice stage">→</button></div><div id="shadow-feedback"></div></div>`);
-  audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details>`);
-  $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Repeat sentence</button></div></div>`);
+  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><div id="shadow-simple-controls"><button id="shadow-simple-play" class="primary" type="button">Play</button><label class="shadow-repeat-check"><input id="shadow-loop" type="checkbox"><span>Repeat</span></label></div><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-feedback"></div></div>`);
+  audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details><div id="shadow-editor" hidden><button id="shadow-edit-done" class="text-button" type="button">Done editing</button></div>`);
+  $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Replay sentence</button></div></div>`);
   $('shadow-simple').append($('sentence-list'));
   const shadowHomes=new Map(['shadow-controls','playback-controls','sentence-tools','audio-options','book-card','play-status'].map(id=>{const element=$(id),home=document.createComment(`Original ${id} position`);element.before(home);return [id,home];}));
   function arrangeShadowing(shadow){
+    if(!shadow)closeRowEditor();
     document.body.toggleAttribute('data-shadow-compact',shadow);document.body.toggleAttribute('data-shadow-options',shadow&&$('shadow-options').open);
     $('shadow-simple').hidden=$('shadow-options').hidden=!shadow;
-    for(const [id,home] of shadowHomes){const target=id==='play-status'?$('shadow-feedback'):$('shadow-options-content');if(shadow){if($(id).parentElement!==target)target.append($(id));}else if($(id).previousSibling!==home)home.after($(id));}
-    if(shadow)$('sentence-tools').before($('shadow-individual-controls'));
+    for(const [id,home] of shadowHomes){const target=id==='play-status'?$('shadow-feedback'):$('shadow-options-content');if(shadow){if($(id).parentElement!==target&&!$('shadow-editor').contains($(id)))target.append($(id));}else if($(id).previousSibling!==home)home.after($(id));}
+    if(shadow)$('shadow-options-content').prepend($('shadow-individual-controls'));
+    $('mini-repeat').hidden=shadow;
   }
   $('shadow-options').addEventListener('toggle',()=>{if(api.getProgress().step===4)update().catch(error=>api.notice(error.message));});
-  $('shadow-simple-play').addEventListener('click',()=>shadowPlay());$('shadow-simple-repeat').addEventListener('click',()=>shadowPlay(true));
+  $('shadow-simple-play').addEventListener('click',()=>shadowPlay());
+  $('shadow-loop').addEventListener('change',()=>{practiceState().repeat=$('shadow-loop').checked;saveCourse().catch(()=>{});});
+  $('shadow-edit-done').addEventListener('click',()=>{stopSession();closeRowEditor();refreshSentenceButtons();});
   $('shadow-edit-sentence').addEventListener('change',()=>selectSentence(Number($('shadow-edit-sentence').value)));
   $('shadow-individual-play').addEventListener('click',()=>{if(!player.paused)pauseAudio('user paused');else playFromSentence(segmentIndex);});
   $('shadow-individual-repeat').addEventListener('click',startSentence);
-  $('shadow-simple-next').addEventListener('click',()=>{if(shadowMode==='cumulative')$('shadow-pass-next').click();else $('sentence-next').click();});
-  $('shadow-simple-back').addEventListener('click',()=>{if(shadowMode==='cumulative')moveShadowing((currentPass()?.index||0)-1).catch(error=>api.notice(error.message));else $('sentence-back').click();});
-  $('shadow-text').addEventListener('change',event=>{
-    const show=event.currentTarget.checked,pass=currentPass();if(shadowMode==='cumulative'&&pass){moveShadowing(shadowingPosition(pass.sentence,(pass.cumulative?2:0)+(show?0:1))).catch(error=>api.notice(error.message));return;}
-    if(shadowMode==='sentence')shadowSingleText=show;else{shadowMode=show?'with':'without';$('shadow-mode').value=shadowMode;}
-    stopSession();update().catch(error=>api.notice(error.message));
-  });
   player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure){lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};needsReconnect=true;$('play-status').textContent='Audio output failed. Tap Play to reconnect and continue.';}});
   function refreshAudioMode(){
     if(!player.backend)return;
@@ -527,7 +519,7 @@ export async function connectStudy(api){
   $('use-prepared').addEventListener('click',async()=>{stopSession();course.segmentMode[api.getActiveAudioId()]='prepared';await saveCourse();segmentIndex=0;refreshSentences();});
   $('reveal-german').addEventListener('click',async()=>{recallRevealed=!recallRevealed;$('reveal-german').textContent=recallRevealed?'Hide German again':'Show German to check';await renderBook();});
   player.addEventListener('emptied',()=>{clearTimeout(boundaryTimer);});
-  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;needsReconnect=false;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=shadowMode==='cumulative'?(currentPass()?.last||0):0;player.playbackRate=course.rate;refreshAudioMode();refreshSentences();playbackControls.refresh();});
+  document.addEventListener('audio-loaded',()=>{recoveryPosition=null;needsReconnect=false;clearTimeout(boundaryTimer);$('audio-options').hidden=!api.getActiveAudioId();$('add-sentence-form').reset();$('new-sentence-status').textContent='';$('sentence-tools-status').textContent='';sentenceToolMode='edit';sentenceToolsOpen=false;analysisGeneration++;segmentIndex=0;if(api.getProgress().step===4)enterShadowing();player.playbackRate=course.rate;refreshAudioMode();refreshSentences();playbackControls.refresh();});
   async function renderBook(){
     const recall=api.getProgress().step===7&&!recallRevealed;
     const plan=preparedPlan(recall);
@@ -547,28 +539,32 @@ export async function connectStudy(api){
     if(recall&&(!currentMap.crop||(currentMap.crop.x===0&&currentMap.crop.y===0&&currentMap.crop.w===1&&currentMap.crop.h===1))){reader.clear();$('reader-status').textContent='Select an English-only area in custom page settings before recall.';return;}
     await reader.render(recall?[currentMap.englishPage]:range(currentMap),recall?{crop:currentMap.crop}:{});
   }
+  document.addEventListener('study-navigation',()=>{if($('study').hidden)stopSession();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)checkpointShadowing();});
+  window.addEventListener('pagehide',()=>checkpointShadowing());
   async function update(){
     const ticket=++generation,p={...api.getProgress()},key=`${p.lesson}:${p.step}`;
-    if(stepKey!==key){stopSession();editingEnglish=false;recallRevealed=false;$('reveal-german').textContent='Show German to check';stepKey=key;reader.clear();if(p.step===4&&shadowMode==='cumulative')segmentIndex=currentPass()?.last||0;
+    if(stepKey!==key){stopSession();editingEnglish=false;recallRevealed=false;$('reveal-german').textContent='Show German to check';closeRowEditor();stepKey=key;reader.clear();shadowOwner=null;
       if(p.step>0&&api.getActiveAudioId()!==(p.tracks[p.lesson]||''))await api.loadAudio(p.tracks[p.lesson]||'');
+      if(p.step===4)enterShadowing();
       if(p.step===1){player.loop=false;$('repeat').checked=false;$('blind-status').textContent='Each listen includes both readings when recorded. The book stays hidden.';}
     }
     if(ticket!==generation)return;
     arrangeShadowing(p.step===4);
-    $('review-controls').hidden=p.step!==0;$('blind-controls').hidden=p.step!==1;$('shadow-controls').hidden=p.step!==4;$('repeat').disabled=p.step===1||p.step===4&&shadowMode==='cumulative';
+    $('review-controls').hidden=p.step!==0;$('blind-controls').hidden=p.step!==1;$('shadow-controls').hidden=p.step!==4;$('repeat').disabled=p.step===1||p.step===4;
     document.querySelector('.audio-card').hidden=[2,7].includes(p.step);
-    $('sentence-controls').hidden=!sentencePractice();$('cumulative-controls').hidden=shadowMode!=='cumulative';refreshReview();refreshSentences();mini();
+    $('sentence-controls').hidden=false;refreshReview();refreshSentences();mini();
     const noAudio=!p.tracks[p.lesson];$('audio-options').hidden=!api.getActiveAudioId();$('player').hidden=noAudio&&p.step!==0;$('audio-info').hidden=!noAudio;
     playbackControls.refresh();
     if(noAudio)$('audio-info').textContent='Add this lesson’s recording in Menu → My materials.';
-    const hideText=p.step<2||(p.step===4&&(shadowMode==='without'||shadowMode==='cumulative'&&!currentPass()?.withText||shadowMode==='sentence'&&!shadowSingleText));$('book-card').hidden=hideText;
+    const hideText=p.step<2;$('book-card').hidden=hideText;
     if(hideText||$('study').hidden||p.step===4&&!$('shadow-options').open){reader.clear();return;}
     const books=api.getLibrary().filter(x=>x.kind==='pdf');$('book-select').replaceChildren(...books.map(x=>new Option(x.name,x.id)));$('book-select').value=getBook()?.id||'';
     $('recall-controls').hidden=p.step!==7;
     try{if(ticket===generation)await renderBook();}catch(error){if(ticket===generation)api.notice(`Could not open your PDF: ${error.message}`);}
   }
-  function exportCourse(){return {rate:course.rate,preferCustom:!!course.preferCustom,books:api.getLibrary().filter(x=>x.kind==='pdf'&&course.books[x.id]).map(x=>({name:x.name,size:x.size,settings:course.books[x.id],active:x.id===getBook()?.id})),shadowing:api.getLibrary().filter(x=>x.kind==='audio'&&Number.isInteger(course.shadowing[x.id])).map(x=>({name:x.name,size:x.size,position:course.shadowing[x.id]})),segments:api.getLibrary().filter(x=>x.kind==='audio'&&course.segments[x.id]).map(x=>({name:x.name,size:x.size,timings:course.segments[x.id],useCustom:course.segmentMode[x.id]==='custom'}))};}
-  async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},shadowing:{...course.shadowing},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}if(data.shadowing!==undefined){if(!Array.isArray(data.shadowing))throw new Error('Invalid shadowing progress in backup.');for(const item of data.shadowing){if(!Number.isInteger(item.position)||item.position<0||item.position>10000)throw new Error('Invalid shadowing pass in backup.');const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file)next.shadowing[file.id]=item.position;}}course=next;await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;refreshAudioMode();await update();}
+  function exportCourse(){checkpointShadowing();return {rate:course.rate,preferCustom:!!course.preferCustom,books:api.getLibrary().filter(x=>x.kind==='pdf'&&course.books[x.id]).map(x=>({name:x.name,size:x.size,settings:course.books[x.id],active:x.id===getBook()?.id})),practice:api.getLibrary().filter(x=>x.kind==='audio').flatMap(x=>Object.entries(course.practice).filter(([key])=>key.endsWith(`:${x.id}`)).map(([key,settings])=>({name:x.name,size:x.size,lesson:Number(key.slice(0,key.indexOf(':'))),settings}))),shadowing:api.getLibrary().filter(x=>x.kind==='audio'&&Number.isInteger(course.shadowing[x.id])).map(x=>({name:x.name,size:x.size,position:course.shadowing[x.id]})),segments:api.getLibrary().filter(x=>x.kind==='audio'&&course.segments[x.id]).map(x=>({name:x.name,size:x.size,timings:course.segments[x.id],useCustom:course.segmentMode[x.id]==='custom'}))};}
+  async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},shadowing:{...course.shadowing},practice:{...course.practice},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}if(data.shadowing!==undefined){if(!Array.isArray(data.shadowing))throw new Error('Invalid shadowing progress in backup.');for(const item of data.shadowing){if(!Number.isInteger(item.position)||item.position<0||item.position>10000)throw new Error('Invalid shadowing pass in backup.');const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file)next.shadowing[file.id]=item.position;}}if(data.practice!==undefined){if(!Array.isArray(data.practice))throw new Error('Invalid shadowing selections in backup.');for(const item of data.practice){if(!Number.isInteger(item.lesson)||item.lesson<1||item.lesson>1000)throw new Error('Invalid shadowing lesson in backup.');const settings=validateSelection(item.settings),file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file)next.practice[`${item.lesson}:${file.id}`]=settings;}}stopSession();course=next;stepKey='';await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;refreshAudioMode();await update();}
   async function verifyBook(meta,profile,options){return verifyBookLayout(await reader.load(await api.getFile(meta),meta.id),profile,options);}
   return {update,exportCourse,restoreCourse,stopSession,verifyBook,flush:()=>courseQueue};
 }

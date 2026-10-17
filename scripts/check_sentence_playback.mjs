@@ -22,7 +22,7 @@ try {
 await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8765/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);
 assert.equal(await page.locator('#app-version').textContent(),`v${JSON.parse(fs.readFileSync('dist/version.json')).version}`);
 await menu('library');await page.locator('#file-input').setInputFiles(file);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('1 stored'));
-await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await page.locator('#shadow-mode').selectOption('sentence');await assertSelected(1);
+await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await assertSelected(1);
 await page.waitForFunction(()=>document.getElementById('player').readyState>=1);
 await page.locator('#edit-sentence-mode').click();
 // Reproduce an oversized first cut, shorten it, then reclaim the gap for sentence 2.
@@ -35,7 +35,7 @@ await seek(earlier);await page.locator('#timing-start-playhead').click();await p
 console.log('Lesson 10: shortened first cut, sought into its freed gap, and saved an earlier start for sentence 2 without changing selection.');
 // Repeat and preview finish naturally; seeking to the end now intentionally cancels a boundary.
 await page.locator('#sentence-play').click();assert(Math.abs(await time()-earlier)<.35);
-await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
+await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Sentence '));
 assert(Math.abs(await time()-end)<.03);await assertSelected(2);
 await nativePlay();await advancePast(end+.8);await assertSelected(2);await pause();
 // Pausing then resuming with Play releases the bound, starting at precisely the paused location.
@@ -56,16 +56,16 @@ await page.locator('#reset-sentence-edit').click();
 console.log('Preview bounds only its draft cut; scrubbing also releases Preview without losing its selected sentence.');
 // Mini-player parity.
 await page.evaluate(()=>window.scrollTo(0,document.body.scrollHeight));await page.waitForFunction(()=>!document.getElementById('mini-player').hidden);
-await page.locator('#mini-repeat').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
-await page.locator('#mini-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));await assertSelected(2);
-console.log('Compact Play and Repeat keep the selected sentence bounded; advanced Play remains free.');
+assert(await page.locator('#mini-repeat').isHidden());await page.locator('.sentence-check').nth(0).uncheck();await page.locator('.sentence-check').nth(1).check();
+await page.locator('#mini-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent==='Selection complete.');await assertSelected(2);
+console.log('Compact Play uses the checked selection; its old repeat button is hidden; advanced Play remains free.');
 // Opt-in sequential automatic continuation remains; scrubbing cancels the queued gap.
 await page.locator('#sentence-controls > details:has(#sentence-auto) > summary').click();await page.locator('#sentence-auto').check();
-await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Your turn'));
+await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('player').paused&&document.getElementById('play-status').textContent.startsWith('Sentence '));
 await seek(0);await page.waitForTimeout(1500);await assertSelected(2);assert.equal(await page.locator('#player').evaluate(p=>p.paused),true);
 await page.locator('#sentence-play').click();await page.waitForFunction(()=>document.getElementById('sentence-status').textContent.startsWith('Sentence 3')&&!document.getElementById('player').paused);await pause();await page.locator('#sentence-auto').uncheck();
 console.log('Scrubbing cancels queued automatic continuation; explicit automatic practice still advances sequentially.');
-await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-mode',{state:'attached'});if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await page.locator('#shadow-mode').selectOption('sentence');
+await page.waitForFunction(()=>document.getElementById('offline-status').textContent==='App available offline');await context.setOffline(true);await page.reload();await page.waitForSelector('#shadow-loop',{state:'attached'});if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();
 await page.locator('#sentence-next').click();await page.locator('#edit-sentence-mode').click();
 assert.equal(Number(await page.locator('#timing-start').inputValue()),earlier);assert.equal(Number(await page.locator('#timing-end').inputValue()),end);assert.equal(await page.locator('#lesson').inputValue(),'10');assert.deepEqual(errors,[]);
 console.log('Corrected timings, imported MP3 and lesson progress survive offline restart.');
