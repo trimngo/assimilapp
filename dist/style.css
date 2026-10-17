@@ -72,8 +72,9 @@ html{scroll-padding-top:calc(var(--toolbar-height,63px) + 12px)}
 /* Uniform page-width German strips with independent playback checkboxes. */
 body[data-shadow-compact] .session{margin-bottom:8px}body[data-shadow-compact] .session #step-title{font-size:28px;margin:8px 0}
 body[data-shadow-compact] .lesson-heading{margin-bottom:8px}body[data-shadow-compact] .audio-card{margin-bottom:8px;padding:10px 8px}
-#shadow-simple-controls{display:flex;gap:20px;align-items:center;margin:0 0 4px}
-#shadow-simple-controls button{min-width:86px;min-height:44px;padding:8px 18px;font-size:15px}
+#shadow-simple-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 4px}
+#shadow-simple-controls button{min-width:80px;min-height:44px;padding:8px 12px;font-size:15px}
+#shadow-repeat-delay{width:96px;min-height:44px;margin:0;padding:8px 4px;font-size:13px}
 .shadow-repeat-check{display:flex;align-items:center;gap:8px;min-height:44px;font-size:14px;cursor:pointer}
 .shadow-repeat-check input,.sentence-check{width:20px;height:20px;flex:none;margin:0;accent-color:var(--ink)}
 #shadow-coverage{font-size:12px;margin:4px 0 8px!important}

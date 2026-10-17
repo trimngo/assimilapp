@@ -6,7 +6,7 @@ import {connectPlaybackControls} from './playback-controls.js';
 import {observeAudioHealth} from './audio-health.js';
 import {APP_VERSION} from './updates.js';
 import {shadowingPass} from './shadowing.js';
-import {selectionState,selectionQueue,selectionStart,validateSelection} from './shadow-selection.js';
+import {selectionState,selectionQueue,selectionStart,validateSelection,REPEAT_DELAYS} from './shadow-selection.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
 
@@ -75,6 +75,7 @@ export async function connectStudy(api){
   function practiceState(){
     const id=api.getActiveAudioId(),lesson=api.getProgress().lesson,key=`${lesson}:${id}`,spans=sentences();
     let saved=course.practice[key];
+    if(saved)saved.repeatDelay ??= 0;
     if(!saved&&Number.isInteger(course.shadowing[id])){
       const pass=shadowingPass(spans.length,course.shadowing[id]);
       saved=selectionState(spans);if(pass){saved.selected=Array.from({length:pass.last-pass.first+1},(_,i)=>i+pass.first);saved.index=pass.first;saved.time=spans[pass.first].start;}
@@ -100,12 +101,14 @@ export async function connectStudy(api){
     const current=session?.kind==='selection'?session.span?.index:state.index;
     setShadowText('shadow-coverage',state.selected.length?`${state.selected.length} of ${count} sentences selected${state.selected.includes(current)?` · Sentence ${current+1}`:''}`:'Check a sentence to include it in playback.');
     $('shadow-loop').checked=state.repeat;
-    setShadowText('shadow-simple-play',player.paused?'Play':'Pause');
-    $('shadow-simple-play').disabled=player.paused&&(!api.getActiveAudioId()||!state.selected.length);
+    $('shadow-repeat-delay').value=String(state.repeatDelay);$('shadow-repeat-delay').hidden=!state.repeat;
+    setShadowText('shadow-simple-play',player.paused&&!session?.waiting?'Play':'Pause');
+    $('shadow-simple-play').disabled=player.paused&&!session?.waiting&&(!api.getActiveAudioId()||!state.selected.length);
     $('shadow-loop').disabled=!api.getActiveAudioId();
     $('mini-repeat').hidden=true;
   }
   async function shadowPlay(){
+    if(session?.waiting){stopSession();mini();return;}
     if(!player.paused){pauseAudio('user paused');checkpointShadowing();return;}
     player.unlock?.().catch(()=>{});checkpointShadowing();
     const state=practiceState(),queue=selectionQueue(state),start=selectionStart(state,queue);if(!start)return;
@@ -118,9 +121,28 @@ export async function connectStudy(api){
     active.finishing=true;pauseAudio('selected sentence complete');seekTo(active.span.end);
     let next=active.cursor+1;
     if(next>=active.queue.length){
-      if(course.practice[active.owner]?.repeat)next=0;
-      else{active.completed=true;checkpointShadowing();$('play-status').textContent='Selection complete.';mini();return;}
+      const state=course.practice[active.owner];
+      if(!state?.repeat){completeSelection(active);return;}
+      if(state.repeatDelay>0){waitForRepeat(active,state.repeatDelay);return;}
+      next=0;
     }
+    await continueSelection(active,next);
+  }
+  function completeSelection(active){
+    clearTimeout(gapTimer);active.waiting=false;active.completed=true;checkpointShadowing();$('play-status').textContent='Selection complete.';mini();
+  }
+  function waitForRepeat(active,seconds){
+    clearTimeout(gapTimer);active.waiting=true;active.finishing=true;
+    $('play-status').textContent=`Next repeat in ${seconds} ${seconds===1?'second':'seconds'}…`;mini();
+    gapTimer=setTimeout(()=>{
+      if(session!==active||!active.waiting)return;
+      if(!course.practice[active.owner]?.repeat){completeSelection(active);return;}
+      continueSelection(active,0).catch(error=>{if(session===active){stopSession();api.notice(error.message);}});
+    },seconds*1000);
+  }
+  async function continueSelection(active,next){
+    if(session!==active)return;
+    active.waiting=false;
     // Each checked interval gets its own output-clock stop. Never play unchecked gaps.
     active.cursor=next;active.span=active.queue[next];active.finishing=false;
     seekTo(active.span.start);checkpointShadowing();
@@ -197,7 +219,7 @@ export async function connectStudy(api){
     try{await readyPlayer();if(session!==active||api.getActiveAudioId()!==id)return;seekTo(span.start);await play();}
     catch(error){if(session===active){stopSession();api.notice(error.message);}}
   }
-  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId());$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||(api.getProgress().step===4&&$('shadow-simple-controls')?$('shadow-simple-controls'):($('playback-controls')||$('player'))).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',player.paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',player.paused?'Play recording':'Pause recording');refreshSentenceButtons();refreshShadowing();}
+  function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId()),paused=player.paused&&!session?.waiting;$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||(api.getProgress().step===4&&$('shadow-simple-controls')?$('shadow-simple-controls'):($('playback-controls')||$('player'))).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',paused?'Play recording':'Pause recording');refreshSentenceButtons();refreshShadowing();}
   async function play(bounded=false){
     player.unlock?.().catch(()=>{});
     if(reconnecting&&!bounded)return false;
@@ -430,7 +452,7 @@ export async function connectStudy(api){
   $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step!==4){seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeek,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
   const audioCard=document.querySelector('.audio-card');
-  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><div id="shadow-simple-controls"><button id="shadow-simple-play" class="primary" type="button">Play</button><label class="shadow-repeat-check"><input id="shadow-loop" type="checkbox"><span>Repeat</span></label></div><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-feedback"></div></div>`);
+  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><div id="shadow-simple-controls"><button id="shadow-simple-play" class="primary" type="button">Play</button><label class="shadow-repeat-check"><input id="shadow-loop" type="checkbox"><span>Repeat</span></label><select id="shadow-repeat-delay" aria-label="Delay between repeats" title="Pause after the selected set, before repeating" hidden>${REPEAT_DELAYS.map(seconds=>`<option value="${seconds}">${seconds?`${seconds} s delay`:'No delay'}</option>`).join('')}</select></div><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-feedback"></div></div>`);
   audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details><div id="shadow-editor" hidden><button id="shadow-edit-done" class="text-button" type="button">Done editing</button></div>`);
   $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Replay sentence</button></div></div>`);
   $('shadow-simple').append($('sentence-list'));
@@ -445,7 +467,8 @@ export async function connectStudy(api){
   }
   $('shadow-options').addEventListener('toggle',()=>{if(api.getProgress().step===4)update().catch(error=>api.notice(error.message));});
   $('shadow-simple-play').addEventListener('click',()=>shadowPlay());
-  $('shadow-loop').addEventListener('change',()=>{practiceState().repeat=$('shadow-loop').checked;saveCourse().catch(()=>{});});
+  $('shadow-loop').addEventListener('change',()=>{const state=practiceState();state.repeat=$('shadow-loop').checked;saveCourse().catch(()=>{});if(!state.repeat&&session?.waiting)completeSelection(session);refreshShadowing();});
+  $('shadow-repeat-delay').addEventListener('change',()=>{const state=practiceState();state.repeatDelay=Number($('shadow-repeat-delay').value);saveCourse().catch(()=>{});if(session?.waiting){if(state.repeatDelay>0)waitForRepeat(session,state.repeatDelay);else continueSelection(session,0).catch(error=>{stopSession();api.notice(error.message);});}});
   $('shadow-edit-done').addEventListener('click',()=>{stopSession();closeRowEditor();refreshSentenceButtons();});
   $('shadow-edit-sentence').addEventListener('change',()=>selectSentence(Number($('shadow-edit-sentence').value)));
   $('shadow-individual-play').addEventListener('click',()=>{if(!player.paused)pauseAudio('user paused');else playFromSentence(segmentIndex);});
@@ -461,6 +484,7 @@ export async function connectStudy(api){
   $('audio-mode').addEventListener('change',()=>reconnectAudio({mode:$('audio-mode').value}));refreshAudioMode();
   async function reconnectAudio({resume,mode}={}){
     if(reconnecting||!player.getAttribute('src'))return false;
+    if(session?.waiting)stopSession();
     const source=player.getAttribute('src'),active=session,id=api.getActiveAudioId();
     const saved=recoveryPosition?.source===source?recoveryPosition:{source,time:player.currentTime,resume:!player.paused||!!player.error||needsReconnect,rate:player.playbackRate,loop:player.loop};
     recoveryPosition=saved;reconnectSession=active;reconnecting=true;clearTimeout(boundaryTimer);clearTimeout(gapTimer);
