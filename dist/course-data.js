@@ -42,12 +42,14 @@ function pageEntries(index,library,refs){
   const combined=library.find(file=>matchedCombinedBook(index,file));
   return refs.map(ref => ({file:combined||sources.get(ref.sourceId)||null, sourceId:ref.sourceId,
     page:combined?ref.globalPage:ref.sourcePage, globalPage:ref.globalPage, crop:pageCrop(ref.crop),
+    ...(ref.visibleBands?{visibleBands:ref.visibleBands.map(pageCrop)}:{}),
     label:`Book page ${ref.globalPage-index.book.printedPageOffset}`}));
 }
 
-export function sentencePages(index,library,number,items){
+export function sentencePages(index,library,number,items,language='de'){
   const lesson=preparedLesson(index,number);
-  return pageEntries(index,library,(lesson?.sentenceExcerpts||[]).filter(ref=>items.includes(ref.number)));
+  const refs=language==='en'?lesson?.englishSentenceExcerpts:lesson?.sentenceExcerpts;
+  return pageEntries(index,library,(refs||[]).filter(ref=>items.includes(ref.number))).map(entry=>({...entry,language}));
 }
 
 export function sentenceBookItems(lesson,spans,custom=false){

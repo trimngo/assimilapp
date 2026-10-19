@@ -1,0 +1,8 @@
+{
+  "description": "English label positions visually checked against the exact private scan. Coordinates are PDF points; no translation text is included.",
+  "pages": {
+    "354": [{"number": 8, "x": 137.2, "y": 428.7}],
+    "428": [{"number": 8, "x": 84.5, "y": 103.1}],
+    "558": [{"number": 8, "x": 145.1, "y": 573.7}]
+  }
+}

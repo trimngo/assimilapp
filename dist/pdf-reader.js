@@ -39,8 +39,12 @@ export class BookReader {
           if(!isCurrent())return;
           const {canvas,base}=pages.get(key),crop=validateCrop(entry.crop),excerpt=document.createElement('canvas');
           excerpt.width=Math.max(1,Math.round(canvas.width*crop.w));excerpt.height=Math.max(1,Math.round(canvas.height*crop.h));
-          excerpt.getContext('2d').drawImage(canvas,canvas.width*crop.x,canvas.height*crop.y,canvas.width*crop.w,canvas.height*crop.h,0,0,excerpt.width,excerpt.height);
-          excerpt.style.setProperty('--excerpt-width',`${base.width*crop.w*1.1}px`);excerpt.setAttribute('role','img');excerpt.setAttribute('aria-label',`German dialogue text · ${entry.label}`);excerpt.dataset.globalPage=entry.globalPage;group.container.append(excerpt);
+          const ctx=excerpt.getContext('2d');
+          if(entry.visibleBands){
+            ctx.fillStyle='white';ctx.fillRect(0,0,excerpt.width,excerpt.height);
+            for(const value of entry.visibleBands){const band=validateCrop(value);ctx.drawImage(canvas,canvas.width*band.x,canvas.height*band.y,canvas.width*band.w,canvas.height*band.h,canvas.width*(band.x-crop.x),canvas.height*(band.y-crop.y),canvas.width*band.w,canvas.height*band.h);}
+          }else ctx.drawImage(canvas,canvas.width*crop.x,canvas.height*crop.y,canvas.width*crop.w,canvas.height*crop.h,0,0,excerpt.width,excerpt.height);
+          excerpt.style.setProperty('--excerpt-width',`${base.width*crop.w*1.1}px`);excerpt.setAttribute('role','img');excerpt.setAttribute('aria-label',`${entry.language==='en'?'English translation':'German dialogue text'} · ${entry.label}`);excerpt.dataset.globalPage=entry.globalPage;group.container.append(excerpt);
         }
       }
     }finally{for(const {canvas} of pages.values())canvas.width=canvas.height=0;}

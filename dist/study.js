@@ -6,7 +6,7 @@ import {connectPlaybackControls} from './playback-controls.js';
 import {observeAudioHealth} from './audio-health.js';
 import {APP_VERSION} from './updates.js';
 import {shadowingPass} from './shadowing.js';
-import {selectionState,selectionQueue,selectionStart,validateSelection,REPEAT_DELAYS} from './shadow-selection.js';
+import {selectionState,selectionQueue,selectionStart,selectionRun,selectionResumeEnd,validateSelection,REPEAT_DELAYS} from './shadow-selection.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
 
@@ -75,7 +75,7 @@ export async function connectStudy(api){
   function practiceState(){
     const id=api.getActiveAudioId(),lesson=api.getProgress().lesson,key=`${lesson}:${id}`,spans=sentences();
     let saved=course.practice[key];
-    if(saved)saved.repeatDelay ??= 0;
+    if(saved){saved.repeatDelay ??= 0;saved.language ||= 'de';}
     if(!saved&&Number.isInteger(course.shadowing[id])){
       const pass=shadowingPass(spans.length,course.shadowing[id]);
       saved=selectionState(spans);if(pass){saved.selected=Array.from({length:pass.last-pass.first+1},(_,i)=>i+pass.first);saved.index=pass.first;saved.time=spans[pass.first].start;}
@@ -90,17 +90,23 @@ export async function connectStudy(api){
   }
   function checkpointShadowing(){
     if(session?.kind!=='selection'||!shadowOwner||session.owner!==shadowOwner.key||api.getActiveAudioId()!==shadowOwner.id)return;
-    const state=course.practice[shadowOwner.key],span=session.span;if(!state||!span)return;
-    state.index=span.index;state.time=Math.max(state.spans[state.index]?.start||0,Math.min(player.currentTime,state.spans[state.index]?.end||0));
+    const state=course.practice[shadowOwner.key],span=activeSelectionCut();if(!state||!span)return;
+    state.index=span.index;state.time=Math.max(span.start,Math.min(player.currentTime,selectionResumeEnd(state.spans,state.index),session.span.end));
     const unchanged=state.selected.length===session.queue.length&&session.queue.every((cut,i)=>cut.index===state.selected[i]);
     state.completed=!!session.completed||!unchanged;lastCheckpoint=performance.now();saveCourse().catch(()=>{});
+  }
+  function activeSelectionCut(){
+    if(session?.kind!=='selection')return null;
+    while(session.cursor<session.span.last&&player.currentTime>=session.queue[session.cursor+1].start)session.cursor++;
+    return session.queue[session.cursor];
   }
   function refreshShadowing(){
     if(!$('shadow-simple')||api.getProgress().step!==4)return;
     const state=practiceState(),count=state.spans.length;
-    const current=session?.kind==='selection'?session.span?.index:state.index;
-    setShadowText('shadow-coverage',state.selected.length?`${state.selected.length} of ${count} sentences selected${state.selected.includes(current)?` · Sentence ${current+1}`:''}`:'Check a sentence to include it in playback.');
+    const current=activeSelectionCut()?.index??state.index;
+    setShadowText('shadow-coverage',state.selected.length?`${state.selected.length} of ${count} selected${state.selected.includes(current)?` · Sentence ${current+1}`:''}`:'Check a sentence to include it in playback.');
     $('shadow-loop').checked=state.repeat;
+    for(const input of document.querySelectorAll('[name="shadow-language"]'))input.checked=input.value===state.language;
     $('shadow-repeat-delay').value=String(state.repeatDelay);$('shadow-repeat-delay').hidden=!state.repeat;
     setShadowText('shadow-simple-play',player.paused&&!session?.waiting?'Play':'Pause');
     $('shadow-simple-play').disabled=player.paused&&!session?.waiting&&(!api.getActiveAudioId()||!state.selected.length);
@@ -112,14 +118,14 @@ export async function connectStudy(api){
     if(!player.paused){pauseAudio('user paused');checkpointShadowing();return;}
     player.unlock?.().catch(()=>{});checkpointShadowing();
     const state=practiceState(),queue=selectionQueue(state),start=selectionStart(state,queue);if(!start)return;
-    stopSession();state.completed=false;const active=session={kind:'selection',owner:shadowOwner.key,queue,cursor:start.cursor,span:queue[start.cursor]};
+    stopSession();state.completed=false;const active=session={kind:'selection',owner:shadowOwner.key,queue,cuts:state.spans,cursor:start.cursor,span:selectionRun(state.spans,queue,start.cursor)};
     player.loop=false;$('repeat').checked=false;
     try{await readyPlayer();if(session!==active)return;seekTo(start.time);await play(true);scheduleBoundary();refreshSentenceButtons();}
     catch(error){if(session===active){stopSession();api.notice(error.message);}}
   }
   async function finishSelection(active){
     active.finishing=true;pauseAudio('selected sentence complete');seekTo(active.span.end);
-    let next=active.cursor+1;
+    let next=active.span.last+1;
     if(next>=active.queue.length){
       const state=course.practice[active.owner];
       if(!state?.repeat){completeSelection(active);return;}
@@ -143,8 +149,8 @@ export async function connectStudy(api){
   async function continueSelection(active,next){
     if(session!==active)return;
     active.waiting=false;
-    // Each checked interval gets its own output-clock stop. Never play unchecked gaps.
-    active.cursor=next;active.span=active.queue[next];active.finishing=false;
+    // Continuous checked runs keep the original audio clock and natural pauses.
+    active.cursor=next;active.span=selectionRun(active.cuts,active.queue,next);active.finishing=false;
     seekTo(active.span.start);checkpointShadowing();
     if(session!==active)return;await play(true);if(session===active)scheduleBoundary();
   }
@@ -167,7 +173,7 @@ export async function connectStudy(api){
   function selectSentence(index){stopSession();segmentIndex=index;refreshSentences();}
   function refreshSentenceButtons(){
     if(api.getProgress().step!==4)return;
-    const state=practiceState(),playing=session?.kind==='selection'?session.span?.index:state.selected.includes(state.index)?state.index:-1;
+    const state=practiceState(),playing=activeSelectionCut()?.index??(state.selected.includes(state.index)?state.index:-1);
     for(const row of $('sentence-list').children){
       const index=Number(row.dataset.index);row.classList.toggle('selected',index===playing);
       row.querySelector('.sentence-check').checked=state.selected.includes(index);
@@ -180,8 +186,8 @@ export async function connectStudy(api){
     $('shadow-options-content').append($('playback-controls'),$('sentence-tools'));
     $('shadow-editor').hidden=true;audioCard.append($('shadow-editor'));sentenceToolsOpen=false;
   }
-  function editRow(index){
-    stopSession();closeRowEditor();segmentIndex=index;sentenceToolMode='edit';sentenceToolsOpen=true;
+  function editRow(index,pause=true){
+    if(pause)stopSession();closeRowEditor();segmentIndex=index;sentenceToolMode='edit';sentenceToolsOpen=true;
     const row=$('sentence-list').querySelector(`[data-index="${index}"]`);if(!row)return;
     row.append($('shadow-editor'));$('shadow-editor').append($('playback-controls'),$('sentence-tools'));$('shadow-editor').hidden=false;
     refreshTimingEditor();refreshSentenceButtons();
@@ -189,8 +195,9 @@ export async function connectStudy(api){
   function refreshSentenceRows(spans){
     const list=$('sentence-list'),visible=api.getProgress().step===4;list.hidden=!visible;
     if(!visible){sentenceRowsKey='';sentenceRender++;return;}
-    const id=api.getActiveAudioId(),lesson=audioLesson(),custom=course.segmentMode[id]==='custom',library=api.getLibrary();
-    const key=JSON.stringify([id,spans,custom,library.filter(file=>file.kind==='pdf').map(file=>[file.id,file.verifiedBookLayout])]);
+    const id=api.getActiveAudioId(),lesson=audioLesson(),custom=course.segmentMode[id]==='custom',library=api.getLibrary(),language=practiceState().language;
+    list.dataset.language=language;
+    const key=JSON.stringify([id,spans,custom,language,library.filter(file=>file.kind==='pdf').map(file=>[file.id,file.verifiedBookLayout])]);
     if(key===sentenceRowsKey){refreshSentenceButtons();return;}
     const editing=$('shadow-editor')&&!$('shadow-editor').hidden?segmentIndex:null;closeRowEditor();
     sentenceRowsKey=key;const ticket=++sentenceRender,groups=[],items=sentenceBookItems(lesson,spans,custom);
@@ -200,15 +207,15 @@ export async function connectStudy(api){
       const check=document.createElement('input');check.type='checkbox';check.className='sentence-check';check.setAttribute('aria-label',`Include sentence ${i+1} in playback`);
       const number=document.createElement('span');number.className='sentence-number';number.textContent=i+1;label.append(check,number);
       check.addEventListener('change',()=>{const state=practiceState(),selected=new Set(state.selected);check.checked?selected.add(i):selected.delete(i);state.selected=[...selected].sort((a,b)=>a-b);state.completed=true;saveCourse().catch(()=>{});refreshShadowing();refreshSentenceButtons();});
-      const text=document.createElement('div');text.className='sentence-text';text.lang='de';
-      const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i]).map(entry=>({...entry,crop:{...entry.crop,x:0,w:1}}));
-      const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':'No book text matched to this cut. The full pages are in Read along.';text.append(note);
+      const text=document.createElement('div');text.className='sentence-text';text.lang=language;
+      const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i],language).map(entry=>({...entry,crop:{...entry.crop,x:0,w:1}}));
+      const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':`No ${language==='en'?'English':'German'} text matched to this cut. The full pages are in Read along.`;text.append(note);
       if(entries.length)groups.push({entries,container:text,note});
       const edit=document.createElement('button');edit.type='button';edit.className='text-button sentence-edit';edit.textContent='Edit';edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.setAttribute('aria-expanded','false');
       edit.addEventListener('click',()=>{if(!$('shadow-editor').hidden&&segmentIndex===i){stopSession();closeRowEditor();refreshSentenceButtons();}else editRow(i);});
       row.append(label,text,edit);return row;
     }));
-    if(editing!==null&&editing<spans.length)editRow(editing);
+    if(editing!==null&&editing<spans.length)editRow(editing,false);
     refreshSentenceButtons();
     const current=()=>ticket===sentenceRender&&!list.hidden;
     reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. The full pages are in Read along.';});
@@ -452,7 +459,7 @@ export async function connectStudy(api){
   $('mini-repeat').addEventListener('click',()=>{if(api.getProgress().step!==4){seekTo(dialogue(api.getActiveAudioId()).start);session=null;play();}});
   const playbackControls=connectPlaybackControls(player,{onPlay:()=>play(),onPause:()=>pauseAudio('user paused'),onSeek:userSeek,onTick:()=>{mini();checkBoundary();audioHealth.check();}});
   const audioCard=document.querySelector('.audio-card');
-  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><div id="shadow-simple-controls"><button id="shadow-simple-play" class="primary" type="button">Play</button><label class="shadow-repeat-check"><input id="shadow-loop" type="checkbox"><span>Repeat</span></label><select id="shadow-repeat-delay" aria-label="Delay between repeats" title="Pause after the selected set, before repeating" hidden>${REPEAT_DELAYS.map(seconds=>`<option value="${seconds}">${seconds?`${seconds} s delay`:'No delay'}</option>`).join('')}</select></div><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-feedback"></div></div>`);
+  audioCard.insertAdjacentHTML('afterbegin',`<div id="shadow-simple" hidden><div id="shadow-simple-controls"><button id="shadow-simple-play" class="primary" type="button">Play</button><label class="shadow-repeat-check"><input id="shadow-loop" type="checkbox"><span>Repeat</span></label><select id="shadow-repeat-delay" aria-label="Delay between repeats" title="Pause after the selected set, before repeating" hidden>${REPEAT_DELAYS.map(seconds=>`<option value="${seconds}">${seconds?`${seconds} s delay`:'No delay'}</option>`).join('')}</select></div><div id="shadow-text-controls"><p id="shadow-coverage" class="note" role="status"></p><div id="shadow-language" role="group" aria-label="Visible text"><label><input type="radio" name="shadow-language" value="de" checked>German</label><label><input type="radio" name="shadow-language" value="en">English</label></div></div><div id="shadow-feedback"></div></div>`);
   audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details><div id="shadow-editor" hidden><button id="shadow-edit-done" class="text-button" type="button">Done editing</button></div>`);
   $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Replay sentence</button></div></div>`);
   $('shadow-simple').append($('sentence-list'));
@@ -467,6 +474,7 @@ export async function connectStudy(api){
   }
   $('shadow-options').addEventListener('toggle',()=>{if(api.getProgress().step===4)update().catch(error=>api.notice(error.message));});
   $('shadow-simple-play').addEventListener('click',()=>shadowPlay());
+  for(const input of document.querySelectorAll('[name="shadow-language"]'))input.addEventListener('change',()=>{if(!input.checked)return;practiceState().language=input.value;saveCourse().catch(()=>{});refreshSentenceRows(sentences());});
   $('shadow-loop').addEventListener('change',()=>{const state=practiceState();state.repeat=$('shadow-loop').checked;saveCourse().catch(()=>{});if(!state.repeat&&session?.waiting)completeSelection(session);refreshShadowing();});
   $('shadow-repeat-delay').addEventListener('change',()=>{const state=practiceState();state.repeatDelay=Number($('shadow-repeat-delay').value);saveCourse().catch(()=>{});if(session?.waiting){if(state.repeatDelay>0)waitForRepeat(session,state.repeatDelay);else continueSelection(session,0).catch(error=>{stopSession();api.notice(error.message);});}});
   $('shadow-edit-done').addEventListener('click',()=>{stopSession();closeRowEditor();refreshSentenceButtons();});

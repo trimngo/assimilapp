@@ -5,6 +5,27 @@ import {matchedAudio,matchedSource,matchedCombinedBook,lessonPages,preparedSente
 const index=JSON.parse(readFileSync(new URL('../dist/course-index.json',import.meta.url)));
 const books=index.book.sources.map(source=>({id:source.id,kind:'pdf',name:source.filename,size:source.bytes,sha256:source.sha256}));
 
+test('English prompt crops cover every dialogue item and remain inside reviewed English-only regions',()=>{
+  const full={id:'full',kind:'pdf',verifiedBookLayout:index.book.combinedLayoutSignature};
+  for(const lesson of index.lessons){
+    const refs=lesson.englishSentenceExcerpts;
+    assert.deepEqual([...new Set(refs.map(ref=>ref.number))],Array.from({length:lesson.numberedLineCount},(_,i)=>i+1));
+    for(const ref of refs){
+      const [x0,y0,x1,y1]=ref.crop;assert(x0>=0&&y0>=0&&x1<=1&&y1<=1&&x0<x1&&y0<y1);assert(!('text' in ref));
+      assert(lesson.englishRecall.some(parent=>parent.globalPage===ref.globalPage&&parent.sourceId===ref.sourceId&&ref.crop.every((value,i)=>i<2?value>=parent.crop[i]-.000001:value<=parent.crop[i]+.000001)));
+      if(lesson.kind==='review')assert(ref.visibleBands?.length);
+      for(const band of ref.visibleBands||[]){assert(band[0]<band[2]&&band[1]<band[3]);assert(band.every((value,i)=>i<2?value>=ref.crop[i]-.000001:value<=ref.crop[i]+.000001));}
+    }
+    const items=Array.from({length:lesson.numberedLineCount},(_,i)=>i+1),split=sentencePages(index,books,lesson.number,items,'en'),combined=sentencePages(index,[full],lesson.number,items,'en');
+    assert(split.every(page=>page.file&&page.language==='en'));
+    assert(combined.every(page=>page.file.id==='full'&&page.page===page.globalPage&&page.language==='en'));
+    assert.deepEqual(combined.map(page=>page.crop),split.map(page=>page.crop));
+  }
+  assert.equal(sentencePages(index,books,98,[19],'en').length,2,'English review prompts can continue on the next page');
+  const inline=sentencePages(index,books,98,[8],'en');assert(inline[0].visibleBands[0].x>.2,'Neighbouring inline translations are blanked without resizing the page');
+  assert(sentencePages(index,[books[0]],58,[1],'en').every(page=>!page.file&&page.sourceId==='301-600.pdf'));
+});
+
 test('every numbered dialogue item has a valid private-book excerpt, in split and full books',()=>{
   const full={id:'full',kind:'pdf',verifiedBookLayout:index.book.combinedLayoutSignature};
   for(const lesson of index.lessons){
