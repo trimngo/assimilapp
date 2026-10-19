@@ -22,7 +22,7 @@ try {
 await page.goto(process.env.STUDY_URL||'http://127.0.0.1:8765/dist/');await page.waitForFunction(()=>!document.getElementById('file-input').disabled);
 assert.equal(await page.locator('#app-version').textContent(),`v${JSON.parse(fs.readFileSync('dist/version.json')).version}`);
 await menu('library');await page.locator('#file-input').setInputFiles(file);await page.waitForFunction(()=>document.getElementById('import-status').textContent.startsWith('1 stored'));
-await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.locator('#step-dots button').nth(4).click();if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await assertSelected(1);
+await menu('study');await page.locator('#lesson').fill('10');await page.locator('#lesson').dispatchEvent('change');await page.getByRole('button',{name:/^Step \d+: Shadowing$/}).click();if(!await page.locator('#shadow-options').evaluate(e=>e.open))await page.locator('#shadow-options > summary').click();await assertSelected(1);
 await page.waitForFunction(()=>document.getElementById('player').readyState>=1);
 await page.locator('#edit-sentence-mode').click();
 // Reproduce an oversized first cut, shorten it, then reclaim the gap for sentence 2.

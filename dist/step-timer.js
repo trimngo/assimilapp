@@ -1,4 +1,5 @@
-export const DEFAULT_MINUTES=Object.freeze([5,3,7,5,10,8,5,2]);
+import {DEFAULT_MINUTES,STEP_ORDER,migrateTimer} from './study-steps.js';
+export {DEFAULT_MINUTES};
 
 export function validateDurations(values){
   if(!Array.isArray(values)||values.length!==DEFAULT_MINUTES.length||
@@ -18,7 +19,8 @@ export function formatCountdown(milliseconds){
 
 export async function connectStepTimer(api){
   const $=id=>document.getElementById(id),button=$('step-timer');
-  const stored=await api.read('state','step-timer');
+  const original=await api.read('state','step-timer');let stored;
+  try{stored=migrateTimer(original);}catch{stored=null;}
   let durations=[...DEFAULT_MINUTES],current=null,saveQueue=Promise.resolve();
   try{if(stored?.durations)durations=validateDurations(stored.durations);}catch{}
   const saved=stored?.current;
@@ -27,7 +29,7 @@ export async function connectStepTimer(api){
     (saved.deadline===null||Number.isFinite(saved.deadline)))current={...saved,resumeOnStudy:!!saved.resumeOnStudy,notified:!!saved.notified};
   const visible=()=>!$('study').hidden;
   function persist(){
-    const snapshot={durations:[...durations],current:{...current}};
+    const snapshot={stepOrder:[...STEP_ORDER],durations:[...durations],current:{...current}};
     const attempt=saveQueue.then(()=>api.write('state','step-timer',snapshot));
     saveQueue=attempt.catch(()=>{});
     return attempt.catch(error=>{api.notice('Could not save the timer. Check device storage.');throw error;});
@@ -117,5 +119,6 @@ export async function connectStepTimer(api){
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)render();});
   setInterval(render,250);
   button.disabled=false;$('timer-settings-form').querySelectorAll('button').forEach(control=>control.disabled=false);fillSettings();update();
+  if(original&&JSON.stringify(original.stepOrder)!==JSON.stringify(STEP_ORDER))persist().catch(()=>{});
   return {update,flush:()=>saveQueue,exportSettings:()=>({durations:[...durations]}),restoreSettings:async values=>{await applyDurations(values);update();await saveQueue;}};
 }
