@@ -4,8 +4,8 @@ const events=['loadstart','emptied','loadedmetadata','durationchange','canplay',
 export const isRendererFailure=error=>error?.code===3&&/AUDIO_RENDERER_ERROR|audio render error|PIPELINE_ERROR_COULD_NOT_RENDER/i.test(error.message||'');
 const aborted=()=>new DOMException('Playback was canceled.','AbortError');
 
-export function getAudioEngine(element){
-  if(!engines.has(element))engines.set(element,new AudioEngine(element));
+export function getAudioEngine(element,options){
+  if(!engines.has(element))engines.set(element,new AudioEngine(element,options));
   return engines.get(element);
 }
 
@@ -120,6 +120,10 @@ export class AudioEngine extends EventTarget{
     this._paused=true;this._stopNode();if(playing)this._emit('pause');
   }
   async _closeContext(){const previous=this.context;this.context=null;this.gain=null;if(previous&&previous.state!=='closed')await previous.close().catch(()=>{});}
+  async dispose(){
+    this.pause();this._generation++;this._playTicket++;this.abortFetch?.abort();this._stopNode();
+    this.removeAttribute('src');this.load();this.buffer=null;this.bufferUrl='';await this._closeContext();
+  }
   async setMode(mode){
     if(!['auto','native','compatibility'].includes(mode))throw new Error('Invalid audio playback mode.');
     this.mode=mode;try{this.storage?.setItem(MODE_KEY,mode);}catch{}

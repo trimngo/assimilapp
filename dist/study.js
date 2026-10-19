@@ -7,6 +7,7 @@ import {observeAudioHealth} from './audio-health.js';
 import {APP_VERSION} from './updates.js';
 import {shadowingPass} from './shadowing.js';
 import {selectionState,selectionQueue,selectionStart,selectionRun,selectionResumeEnd,validateSelection,REPEAT_DELAYS} from './shadow-selection.js';
+import {SentenceRecorder} from './sentence-recorder.js';
 const $=id=>document.getElementById(id);
 const fullCrop={x:0,y:0,w:1,h:1};
 
@@ -14,7 +15,7 @@ export async function connectStudy(api){
   let course=await api.read('state','course')||{books:{},segments:{},rate:1};
   course.books ||= {};course.segments ||= {};course.segmentMode ||= {};course.shadowing ||= {};course.practice ||= {};course.rate=Number(course.rate)||1;
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='';
-  const player=api.player||$('player');
+  const player=api.player||$('player');let voice;
   let reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0,shadowOwner=null,lastCheckpoint=0;
   const audioHealth=observeAudioHealth(player,{
     onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent=playbackFailure(player)?'Audio output failed. Tap Play to reconnect and continue.':'Playback was interrupted. Tap Play to reconnect and continue.';}},
@@ -68,7 +69,7 @@ export async function connectStudy(api){
   const dialogue=(id,includeRepeat=api.getProgress().step===1)=>preparedDialogue(matchedAudio(api.getIndex(),api.getLibrary().find(file=>file.id===id)),includeRepeat)||{start:0,end:player.duration};
   function saveCourse(){const snapshot=structuredClone(course);const attempt=courseQueue.then(()=>api.write('state','course',snapshot));courseQueue=attempt.catch(()=>{});return attempt.catch(error=>{api.notice('Could not save lesson setup. Check storage and export a backup.');throw error;});}
   function mapping(lesson){const settings=bookSettings();if(!settings)return null;if(settings.pages?.[lesson])return {...settings.pages[lesson],estimated:false};if(settings.pattern){const {baseLesson,basePage,span}=settings.pattern;const start=basePage+(lesson-baseLesson)*span;if(start<1)return null;const layout=settings.layout||{offset:Math.min(1,span-1),crop:fullCrop};return {start,end:start+span-1,englishPage:start+layout.offset,crop:layout.crop,estimated:true};}return null;}
-  function stopSession(){checkpointShadowing();session=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');player.setPlaybackEnd?.(null);}
+  function stopSession({stopVoice=true}={}){if(stopVoice)voice?.stopActivity();checkpointShadowing();session=null;clearTimeout(boundaryTimer);clearTimeout(gapTimer);$('play-status').textContent='';pauseAudio('session stopped');player.setPlaybackEnd?.(null);}
   function reviewTracks(){const p=api.getProgress(),n=Number($('review-count').value);return Array.from({length:Math.min(n,p.lesson-1)},(_,i)=>p.lesson-Math.min(n,p.lesson-1)+i).map(lesson=>({lesson,file:api.getLibrary().find(x=>x.id===p.tracks[lesson]&&x.kind==='audio')}));}
   function refreshReview(){const tracks=reviewTracks();$('review-list').textContent=tracks.length?tracks.map(x=>`Lesson ${x.lesson}${x.file?'':' (recording not imported)'}`).join(' · '):'This is your first lesson. Continue to blind listening.';$('start-review').disabled=!tracks.some(x=>x.file);}
   function setShadowText(id,text){if($(id).textContent!==text)$(id).textContent=text;}
@@ -109,11 +110,12 @@ export async function connectStudy(api){
     for(const input of document.querySelectorAll('[name="shadow-language"]'))input.checked=input.value===state.language;
     $('shadow-repeat-delay').value=String(state.repeatDelay);$('shadow-repeat-delay').hidden=!state.repeat;
     setShadowText('shadow-simple-play',player.paused&&!session?.waiting?'Play':'Pause');
-    $('shadow-simple-play').disabled=player.paused&&!session?.waiting&&(!api.getActiveAudioId()||!state.selected.length);
+    $('shadow-simple-play').disabled=!!voice?.busy||player.paused&&!session?.waiting&&(!api.getActiveAudioId()||!state.selected.length);
     $('shadow-loop').disabled=!api.getActiveAudioId();
     $('mini-repeat').hidden=true;
   }
   async function shadowPlay(){
+    if(voice?.busy)return;
     if(session?.waiting){stopSession();mini();return;}
     if(!player.paused){pauseAudio('user paused');checkpointShadowing();return;}
     player.unlock?.().catch(()=>{});checkpointShadowing();
@@ -179,6 +181,18 @@ export async function connectStudy(api){
       row.querySelector('.sentence-check').checked=state.selected.includes(index);
       if(index===playing)row.setAttribute('aria-current','true');else row.removeAttribute('aria-current');
       row.querySelector('.sentence-edit').setAttribute('aria-expanded',String(sentenceToolsOpen&&segmentIndex===index&&$('shadow-editor').parentElement===row));
+      const key=row.dataset.takeKey,capture=voice?.active,ownCapture=key&&capture?.key===key,ownSample=key&&voice?.sample?.key===key;
+      const original=row.querySelector('.sentence-original'),record=row.querySelector('.sentence-record'),mine=row.querySelector('.sentence-mine');
+      const originalPlaying=session?.kind==='comparison'&&session.voiceKey===key&&!player.paused;
+      const voiceUi=JSON.stringify([key,capture?.key,capture?.phase,voice?.sample?.key,!!voice?.take(key),!!voice?.supported,originalPlaying,!!api.getActiveAudioId()]);
+      if(row.voiceUi===voiceUi)continue;row.voiceUi=voiceUi;
+      original.disabled=!!voice?.busy||!api.getActiveAudioId();original.setAttribute('aria-label',`${originalPlaying?'Stop':'Play'} original sentence ${index+1}`);original.title=original.getAttribute('aria-label');original.setAttribute('aria-pressed',String(originalPlaying));
+      const recording=ownCapture&&capture.phase==='recording',requesting=ownCapture&&capture.phase==='requesting';
+      record.disabled=!key||!voice?.supported||!!capture&&(!ownCapture||capture.phase==='saving');
+      record.dataset.recording=String(!!recording);record.querySelector('.voice-label').textContent=recording?'Stop':requesting?'Cancel':ownCapture?'Saving':'Rec';
+      record.setAttribute('aria-label',`${recording?'Stop recording':requesting?'Cancel microphone request':ownCapture?'Saving recording':voice?.take(key)?'Replace recording for':'Record'} sentence ${index+1}`);record.title=voice?.supported?record.getAttribute('aria-label'):'Voice recording needs microphone support. Try Safari or Chrome.';record.setAttribute('aria-pressed',String(!!recording));
+      mine.disabled=!!voice?.busy||!voice?.take(key);mine.querySelector('.voice-label').textContent=ownSample?'Stop':'Mine';mine.setAttribute('aria-label',`${ownSample?'Stop':'Play'} my recording for sentence ${index+1}`);mine.title=mine.getAttribute('aria-label');mine.setAttribute('aria-pressed',String(!!ownSample));
+      row.dataset.voiceState=ownCapture?capture.phase:ownSample?'playing':'idle';
     }
   }
   function closeRowEditor(){
@@ -205,20 +219,37 @@ export async function connectStudy(api){
       const row=document.createElement('div');row.className='sentence-row';row.dataset.index=i;row.setAttribute('role','listitem');
       const label=document.createElement('label');label.className='sentence-choice';
       const check=document.createElement('input');check.type='checkbox';check.className='sentence-check';check.setAttribute('aria-label',`Include sentence ${i+1} in playback`);
-      const number=document.createElement('span');number.className='sentence-number';number.textContent=i+1;label.append(check,number);
+      label.append(check);
       check.addEventListener('change',()=>{const state=practiceState(),selected=new Set(state.selected);check.checked?selected.add(i):selected.delete(i);state.selected=[...selected].sort((a,b)=>a-b);state.completed=true;saveCourse().catch(()=>{});refreshShadowing();refreshSentenceButtons();});
       const text=document.createElement('div');text.className='sentence-text';text.lang=language;
       const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i],language).map(entry=>({...entry,crop:{...entry.crop,x:0,w:1}}));
       const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':`No ${language==='en'?'English':'German'} text matched to this cut. The full pages are in Read along.`;text.append(note);
       if(entries.length)groups.push({entries,container:text,note});
-      const edit=document.createElement('button');edit.type='button';edit.className='text-button sentence-edit';edit.textContent='Edit';edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.setAttribute('aria-expanded','false');
+      const edit=document.createElement('button');edit.type='button';edit.className='text-button sentence-edit';edit.textContent=`${i+1} ✎`;edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.title=edit.getAttribute('aria-label');edit.setAttribute('aria-expanded','false');
       edit.addEventListener('click',()=>{if(!$('shadow-editor').hidden&&segmentIndex===i){stopSession();closeRowEditor();refreshSentenceButtons();}else editRow(i);});
-      row.append(label,text,edit);return row;
+      const marker=document.createElement('div');marker.className='sentence-marker';marker.append(label,edit);
+      const controls=document.createElement('div');controls.className='sentence-voice';controls.setAttribute('role','group');controls.setAttribute('aria-label',`Sentence ${i+1} audio`);
+      const icons={original:'<path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',record:'<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>',mine:'<path d="m8 4 13 8-13 8V4Z"/>'};
+      for(const [kind,caption] of [['original','Orig'],['record','Rec'],['mine','Mine']]){
+        const button=document.createElement('button');button.type='button';button.className=`sentence-${kind}`;button.disabled=true;button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${icons[kind]}</svg><span class="voice-label">${caption}</span>`;
+        button.addEventListener('click',()=>{if(kind==='record')voice.record(row.dataset.takeKey);else if(kind==='mine')voice.playMine(row.dataset.takeKey);else playOriginal(i,row.dataset.takeKey);});controls.append(button);
+      }
+      row.append(marker,text,controls);return row;
     }));
     if(editing!==null&&editing<spans.length)editRow(editing,false);
     refreshSentenceButtons();
+    const file=library.find(file=>file.id===id),scope=JSON.stringify(['german',api.getProgress().lesson,file?.sha256||id]);
+    if(voice&&id)voice.setContext(scope,spans).then(model=>{if(!model||ticket!==sentenceRender)return;for(const [i,row] of [...list.children].entries())row.dataset.takeKey=model.slots[i];refreshSentenceButtons();}).catch(()=>{if(ticket===sentenceRender)api.notice('Could not open local voice recordings. Check device storage and try reopening the app.');});
     const current=()=>ticket===sentenceRender&&!list.hidden;
     reader.renderExcerpts(groups,api.getFile,current).then(()=>{if(current())for(const group of groups)group.note.remove();}).catch(()=>{if(current())for(const group of groups)group.note.textContent='Could not display this sentence. The full pages are in Read along.';});
+  }
+  async function playOriginal(index,key){
+    if(voice?.busy)return;
+    if(session?.kind==='comparison'&&session.voiceKey===key&&!player.paused){stopSession();mini();return;}
+    player.unlock?.().catch(()=>{});stopSession();const span=sentences()[index];if(!span)return;
+    const active=session={kind:'comparison',span:{start:span.start,end:span.end},voiceKey:key};player.loop=false;
+    try{await readyPlayer();if(session!==active)return;seekTo(span.start);await play(true);scheduleBoundary();mini();}
+    catch(error){if(session===active){stopSession();api.notice(error.message);}}
   }
   async function playFromSentence(index){
     player.unlock?.().catch(()=>{});selectSentence(index);const span=sentences()[index];if(!span)return;
@@ -228,6 +259,8 @@ export async function connectStudy(api){
   }
   function mini(){const file=api.getLibrary().find(x=>x.id===api.getActiveAudioId()),paused=player.paused&&!session?.waiting;$('mini-player').hidden=!file||$('study').hidden||document.querySelector('.audio-card').hidden||(api.getProgress().step===4&&$('shadow-simple-controls')?$('shadow-simple-controls'):($('playback-controls')||$('player'))).getBoundingClientRect().bottom>document.querySelector('.top-bar').getBoundingClientRect().bottom;for(const [id,text] of [['mini-title',file?.name||''],['mini-time',`${formatTime(player.currentTime)} / ${formatTime(player.duration)}`],['mini-play',paused?'Play':'Pause']])if($(id).textContent!==text)$(id).textContent=text;$('mini-play').setAttribute('aria-label',paused?'Play recording':'Pause recording');refreshSentenceButtons();refreshShadowing();}
   async function play(bounded=false){
+    if(voice?.busy){api.notice('Stop your recording before playing audio.');return false;}
+    voice?.stopSample();
     player.unlock?.().catch(()=>{});
     if(reconnecting&&!bounded)return false;
     if(needsReconnect&&!reconnecting){if(!bounded&&api.getProgress().step===4)freePlayback();return reconnectAudio({resume:true});}
@@ -409,9 +442,11 @@ export async function connectStudy(api){
     if(active.kind==='selection'){await finishSelection(active);return;}
     active.finishing=true;clearTimeout(boundaryTimer);
     // A same-file repeat can seek while playing, keeping Android's output session alive.
-    const rewinding=active.kind==='blind'&&active.played<1||!['preview','review','blind'].includes(active.kind)&&$('repeat').checked;
+    const rewinding=active.kind==='blind'&&active.played<1||!['preview','comparison','review','blind'].includes(active.kind)&&$('repeat').checked;
     if(!rewinding)pauseAudio('range complete');
-    if(active.kind==='preview'){
+    if(active.kind==='comparison'){
+      session=null;seekTo(active.span.end);$('play-status').textContent='Original complete.';
+    }else if(active.kind==='preview'){
       session=null;seekTo(active.span.end);$(active.statusId||'timing-edit-status').textContent=active.statusId?'Preview complete. Add sentence to save it.':'Preview complete. Save sentence to keep these timings.';
     }else if(active.kind==='blind'){
       active.played++;$('blind-status').textContent=`Listen ${active.played} of 2 complete.`;
@@ -434,7 +469,9 @@ export async function connectStudy(api){
   player.addEventListener('pause',()=>{if(player.paused){clearTimeout(boundaryTimer);checkpointShadowing();}else scheduleBoundary();mini();});
   player.addEventListener('timeupdate',()=>{mini();checkBoundary();if(!player.paused&&performance.now()-lastCheckpoint>5000)checkpointShadowing();});
   player.addEventListener('play',()=>{
+    if(voice?.busy){pauseAudio('microphone active');return;}
     if(reconnecting||player.paused){mini();return;}
+    voice?.stopSample();
     mini();clearTimeout(gapTimer);$('play-status').textContent='';
     // Playback intent is set by the button action, not the timing of Safari's play event.
     if(session?.finishing&&session.kind!=='selection'){if(api.getProgress().step===4)freePlayback();else session.finishing=false;}
@@ -463,6 +500,13 @@ export async function connectStudy(api){
   audioCard.insertAdjacentHTML('beforeend',`<details id="shadow-options" hidden><summary>Options</summary><div id="shadow-options-content"></div></details><div id="shadow-editor" hidden><button id="shadow-edit-done" class="text-button" type="button">Done editing</button></div>`);
   $('shadow-options-content').insertAdjacentHTML('beforeend',`<div id="shadow-individual-controls"><label class="field">Individual sentence<select id="shadow-edit-sentence"></select></label><div class="backup-actions"><button id="shadow-individual-play" class="secondary" type="button">Play sentence</button><button id="shadow-individual-repeat" class="secondary" type="button">Replay sentence</button></div></div>`);
   $('shadow-simple').append($('sentence-list'));
+  voice=new SentenceRecorder({
+    beforeActivity:()=>stopSession({stopVoice:false}),onNotice:message=>api.notice(message),getBackend:()=>player.backend||'native',
+    onMicrophoneReleased:()=>{needsReconnect=true;recoveryPosition=null;audioHealth.record('microphone released');}
+  });
+  voice.addEventListener('change',()=>{refreshSentenceButtons();refreshShadowing();$('mini-play').disabled=voice.busy;});
+  $('shadow-options-content').insertAdjacentHTML('beforeend','<p class="note">Beside each sentence: Orig plays the original sentence; Rec records your voice (tap Stop to save); Mine plays your take. Recording again replaces that take. Allow microphone access when asked. Voice takes stay on this device and work offline; progress backups do not include them.</p>');
+  sentenceRowsKey='';
   const shadowHomes=new Map(['shadow-controls','playback-controls','sentence-tools','audio-options','book-card','play-status'].map(id=>{const element=$(id),home=document.createComment(`Original ${id} position`);element.before(home);return [id,home];}));
   function arrangeShadowing(shadow){
     if(!shadow)closeRowEditor();
@@ -572,7 +616,8 @@ export async function connectStudy(api){
     await reader.render(recall?[currentMap.englishPage]:range(currentMap),recall?{crop:currentMap.crop}:{});
   }
   document.addEventListener('study-navigation',()=>{if($('study').hidden)stopSession();});
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)checkpointShadowing();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){checkpointShadowing();voice.stopActivity();}});
+  window.addEventListener('pagehide',()=>voice.stopActivity());
   window.addEventListener('pagehide',()=>checkpointShadowing());
   async function update(){
     const ticket=++generation,p={...api.getProgress()},key=`${p.lesson}:${p.step}`;
@@ -598,5 +643,5 @@ export async function connectStudy(api){
   function exportCourse(){checkpointShadowing();return {rate:course.rate,preferCustom:!!course.preferCustom,books:api.getLibrary().filter(x=>x.kind==='pdf'&&course.books[x.id]).map(x=>({name:x.name,size:x.size,settings:course.books[x.id],active:x.id===getBook()?.id})),practice:api.getLibrary().filter(x=>x.kind==='audio').flatMap(x=>Object.entries(course.practice).filter(([key])=>key.endsWith(`:${x.id}`)).map(([key,settings])=>({name:x.name,size:x.size,lesson:Number(key.slice(0,key.indexOf(':'))),settings}))),shadowing:api.getLibrary().filter(x=>x.kind==='audio'&&Number.isInteger(course.shadowing[x.id])).map(x=>({name:x.name,size:x.size,position:course.shadowing[x.id]})),segments:api.getLibrary().filter(x=>x.kind==='audio'&&course.segments[x.id]).map(x=>({name:x.name,size:x.size,timings:course.segments[x.id],useCustom:course.segmentMode[x.id]==='custom'}))};}
   async function restoreCourse(data){if(!data)return;const next={books:{},segments:{},segmentMode:{},shadowing:{...course.shadowing},practice:{...course.practice},preferCustom:!!data.preferCustom,rate:[.75,.9,1,1.1,1.25].includes(data.rate)?data.rate:1};if(!Array.isArray(data.books)||!Array.isArray(data.segments))throw new Error('Invalid lesson setup in backup.');for(const item of data.books){const file=api.getLibrary().find(x=>x.kind==='pdf'&&x.name===item.name&&x.size===item.size);if(!file)continue;const settings=item.settings;if(!settings||typeof settings.pages!=='object')throw new Error('Invalid book pages in backup.');for(const [lesson,map] of Object.entries(settings.pages)){if(!/^\d+$/.test(lesson)||!Number.isInteger(map.start)||!Number.isInteger(map.end)||map.start<1||map.end<map.start||map.end-map.start>11||!Number.isInteger(map.englishPage)||map.englishPage<map.start||map.englishPage>map.end)throw new Error('Invalid page mapping in backup.');validateCrop(map.crop||fullCrop);}if(settings.pattern){const pattern=settings.pattern;if(!Number.isInteger(pattern.baseLesson)||pattern.baseLesson<1||!Number.isInteger(pattern.basePage)||pattern.basePage<1||!Number.isInteger(pattern.span)||pattern.span<1||pattern.span>12)throw new Error('Invalid page pattern in backup.');}if(settings.layout){validateCrop(settings.layout.crop);if(!Number.isInteger(settings.layout.offset)||settings.layout.offset<0||settings.layout.offset>11)throw new Error('Invalid English layout in backup.');}next.books[file.id]=settings;if(item.active)next.activeBook=file.id;}for(const item of data.segments){const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file){next.segments[file.id]=validateSegments(item.timings);next.segmentMode[file.id]=item.useCustom===false?'prepared':'custom';}}if(data.shadowing!==undefined){if(!Array.isArray(data.shadowing))throw new Error('Invalid shadowing progress in backup.');for(const item of data.shadowing){if(!Number.isInteger(item.position)||item.position<0||item.position>10000)throw new Error('Invalid shadowing pass in backup.');const file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file)next.shadowing[file.id]=item.position;}}if(data.practice!==undefined){if(!Array.isArray(data.practice))throw new Error('Invalid shadowing selections in backup.');for(const item of data.practice){if(!Number.isInteger(item.lesson)||item.lesson<1||item.lesson>1000)throw new Error('Invalid shadowing lesson in backup.');const settings=validateSelection(item.settings),file=api.getLibrary().find(x=>x.kind==='audio'&&x.name===item.name&&x.size===item.size);if(file)next.practice[`${item.lesson}:${file.id}`]=settings;}}stopSession();course=next;stepKey='';await saveCourse();$('speed').value=String(course.rate);player.playbackRate=course.rate;refreshAudioMode();await update();}
   async function verifyBook(meta,profile,options){return verifyBookLayout(await reader.load(await api.getFile(meta),meta.id),profile,options);}
-  return {update,exportCourse,restoreCourse,stopSession,verifyBook,flush:()=>courseQueue};
+  return {update,exportCourse,restoreCourse,stopSession,verifyBook,flush:async()=>{await voice.flush();await courseQueue;}};
 }

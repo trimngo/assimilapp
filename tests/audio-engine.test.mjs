@@ -62,3 +62,7 @@ test('scrubbing releases a scheduled sentence end and reconnect can rearm the sa
   engine.context.currentTime+=.5;engine.addEventListener('seeking',()=>engine.setPlaybackEnd(null));engine.currentTime=5;assert.equal(old.onended,null);assert.equal(engine.node.stopAt,undefined);assert.equal(engine.node.offset,5);
   engine.pause();await engine.reconnect();await engine.loading;engine.currentTime=10;engine.setPlaybackEnd(11.1);await engine.play();assert(Math.abs(engine.node.stopAt-engine.context.currentTime-1.1)<1e-8);engine.pause();await engine._closeContext();
 });
+test('disposing sample playback releases decoded audio, output context and pending Play',async()=>{
+  const {engine}=setup();engine.src='blob:sample';await engine.setMode('compatibility');await engine.loading;await engine.play();const context=engine.context;assert(engine.node);await engine.dispose();assert(engine.paused);assert.equal(context.state,'closed');assert.equal(engine.buffer,null);assert.equal(engine.node,null);assert.equal(engine.getAttribute('src'),null);
+  engine.src='blob:pending';await engine.loading;let release;engine.context=null;engine._ensureContext().resume=()=>new Promise(resolve=>release=resolve);const pending=engine.play(),canceled=assert.rejects(pending,{name:'AbortError'});await engine.dispose();release();await canceled;assert(engine.paused);
+});
