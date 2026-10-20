@@ -18,9 +18,17 @@ export async function connectStudy(api){
   let courseQueue=Promise.resolve(),generation=0,openedId='',opening=null,currentMap=null,editingEnglish=false,draftCrop={...fullCrop},segmentIndex=0,session=null,boundaryTimer,gapTimer,analysisGeneration=0,activeAnalysisTicket=0,stepKey='';
   const player=api.player||$('player');let voice;
   let reconnecting=false,recoveryPosition=null,reconnectSession=null,lastMediaFailure=null,needsReconnect=false,playRequest=0,shadowOwner=null,lastCheckpoint=0;
+  function reportPlaybackIssue(message,notify=true){
+    $('play-status').textContent=message;
+    // Shadowing keeps feedback out of the sentence layout. Failures still use
+    // the existing fixed notice, which never moves the book or controls.
+    if(notify&&api.getProgress().step===STEP.SHADOWING)api.notice(message);
+  }
   const audioHealth=observeAudioHealth(player,{
-    onInterrupted:()=>{if(!reconnecting){needsReconnect=true;$('play-status').textContent=playbackFailure(player)?'Audio output failed. Tap Play to reconnect and continue.':'Playback was interrupted. Tap Play to reconnect and continue.';}},
-    onStalled:()=>{needsReconnect=true;pauseAudio('stalled clock');$('play-status').textContent='Audio stopped advancing. Tap Play to reconnect and continue.';}
+    // Pause events can arrive during sentence transitions. Keep those details
+    // available without introducing a popup after normal playback.
+    onInterrupted:()=>{if(!reconnecting){needsReconnect=true;reportPlaybackIssue(playbackFailure(player)?'Audio output failed. Tap Play to reconnect and continue.':'Playback was interrupted. Tap Play to reconnect and continue.',false);}},
+    onStalled:()=>{needsReconnect=true;pauseAudio('stalled clock');reportPlaybackIssue('Audio stopped advancing. Tap Play to reconnect and continue.');}
   });
   document.addEventListener('visibilitychange',()=>audioHealth.record(`page ${document.visibilityState}`));
   function pauseAudio(reason){playRequest++;audioHealth.expectPause(reason);player.pause();}
@@ -220,21 +228,22 @@ export async function connectStudy(api){
       const row=document.createElement('div');row.className='sentence-row';row.dataset.index=i;row.setAttribute('role','listitem');
       const label=document.createElement('label');label.className='sentence-choice';
       const check=document.createElement('input');check.type='checkbox';check.className='sentence-check';check.setAttribute('aria-label',`Include sentence ${i+1} in playback`);
-      label.append(check);
+      const number=document.createElement('span');number.className='sentence-number';number.textContent=i+1;label.append(check,number);
       check.addEventListener('change',()=>{const state=practiceState(),selected=new Set(state.selected);check.checked?selected.add(i):selected.delete(i);state.selected=[...selected].sort((a,b)=>a-b);state.completed=true;saveCourse().catch(()=>{});refreshShadowing();refreshSentenceButtons();});
       const text=document.createElement('div');text.className='sentence-text';text.lang=language;
       const entries=sentencePages(api.getIndex(),library,lesson?.number,items[i],language).map(entry=>({...entry,crop:{...entry.crop,x:0,w:1}}));
       const note=document.createElement('p');note.className='note';note.textContent=entries.length?'Loading sentence…':`No ${language==='en'?'English':'German'} text matched to this cut. The full pages are in Read along.`;text.append(note);
       if(entries.length)groups.push({entries,container:text,note});
-      const edit=document.createElement('button');edit.type='button';edit.className='text-button sentence-edit';edit.textContent=`${i+1} ✎`;edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.title=edit.getAttribute('aria-label');edit.setAttribute('aria-expanded','false');
+      const edit=document.createElement('button');edit.type='button';edit.className='sentence-edit';edit.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="m16 3 5 5-12 12H4v-5L16 3Z"/><path d="m13 6 5 5"/></svg><span class="voice-label">Edit</span>';edit.setAttribute('aria-label',`Edit sentence ${i+1} timings`);edit.title=edit.getAttribute('aria-label');edit.setAttribute('aria-expanded','false');edit.setAttribute('aria-controls','shadow-editor');
       edit.addEventListener('click',()=>{if(!$('shadow-editor').hidden&&segmentIndex===i){stopSession();closeRowEditor();refreshSentenceButtons();}else editRow(i);});
-      const marker=document.createElement('div');marker.className='sentence-marker';marker.append(label,edit);
-      const controls=document.createElement('div');controls.className='sentence-voice';controls.setAttribute('role','group');controls.setAttribute('aria-label',`Sentence ${i+1} audio`);
+      const marker=document.createElement('div');marker.className='sentence-marker';marker.append(label);
+      const controls=document.createElement('div');controls.className='sentence-voice';controls.setAttribute('role','group');controls.setAttribute('aria-label',`Sentence ${i+1} controls`);
       const icons={original:'<path d="M11 5 6 9H3v6h3l5 4V5Z"/><path d="M15 8a6 6 0 0 1 0 8m3-11a10 10 0 0 1 0 14"/>',record:'<rect x="9" y="2" width="6" height="13" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/>',mine:'<path d="m8 4 13 8-13 8V4Z"/>'};
       for(const [kind,caption] of [['original','Orig'],['record','Rec'],['mine','Mine']]){
         const button=document.createElement('button');button.type='button';button.className=`sentence-${kind}`;button.disabled=true;button.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">${icons[kind]}</svg><span class="voice-label">${caption}</span>`;
         button.addEventListener('click',()=>{if(kind==='record')voice.record(row.dataset.takeKey);else if(kind==='mine')voice.playMine(row.dataset.takeKey);else playOriginal(i,row.dataset.takeKey);});controls.append(button);
       }
+      controls.append(edit);
       row.append(marker,text,controls);return row;
     }));
     if(editing!==null&&editing<spans.length)editRow(editing,false);
@@ -272,15 +281,15 @@ export async function connectStudy(api){
       await Promise.race([player.play(),new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('The browser did not start playback within 12 seconds.')),12000);})]);
       if(request!==playRequest||source!==player.getAttribute('src'))return false;
       audioHealth.result(player.paused?'resolved, but paused':'playing');
-      if(player.paused){needsReconnect=true;audioHealth.expectPause('interrupted start');$('play-status').textContent='Playback was interrupted. Tap Play to reconnect and continue.';return false;}
+      if(player.paused){needsReconnect=true;audioHealth.expectPause('interrupted start');reportPlaybackIssue('Playback was interrupted. Tap Play to reconnect and continue.');return false;}
       needsReconnect=false;
       if(session?.kind==='review')$('play-status').textContent=`Reviewing lesson ${session.tracks[session.index].lesson}`;else $('play-status').textContent='';
       return true;
     }catch(error){
       if(request!==playRequest||source!==player.getAttribute('src'))return false;
       audioHealth.result(`${error.name}: ${error.message}`);audioHealth.expectPause('start rejected');player.pause();
-      if(error.name==='NotAllowedError')$('play-status').textContent='Tap Play to continue this recording.';
-      else{needsReconnect=true;const failure=playbackFailure(player);if(failure)api.notice(failure.message);$('play-status').textContent='Audio could not start. Tap Play to reconnect and continue.';}
+      if(error.name==='NotAllowedError')reportPlaybackIssue('Tap Play to continue this recording.');
+      else{needsReconnect=true;const failure=playbackFailure(player);if(failure)api.notice(failure.message);reportPlaybackIssue('Audio could not start. Tap Play to reconnect and continue.');}
       return false;
     }finally{clearTimeout(timer);}
   }
@@ -513,6 +522,7 @@ export async function connectStudy(api){
     if(!shadow)closeRowEditor();
     document.body.toggleAttribute('data-shadow-compact',shadow);document.body.toggleAttribute('data-shadow-options',shadow&&$('shadow-options').open);
     $('shadow-simple').hidden=$('shadow-options').hidden=!shadow;
+    $('play-status').hidden=shadow;
     for(const [id,home] of shadowHomes){const target=id==='play-status'?$('shadow-feedback'):$('shadow-options-content');if(shadow){if($(id).parentElement!==target&&!$('shadow-editor').contains($(id)))target.append($(id));}else if($(id).previousSibling!==home)home.after($(id));}
     if(shadow)$('shadow-options-content').prepend($('shadow-individual-controls'));
     $('mini-repeat').hidden=shadow;
@@ -526,7 +536,7 @@ export async function connectStudy(api){
   $('shadow-edit-sentence').addEventListener('change',()=>selectSentence(Number($('shadow-edit-sentence').value)));
   $('shadow-individual-play').addEventListener('click',()=>{if(!player.paused)pauseAudio('user paused');else playFromSentence(segmentIndex);});
   $('shadow-individual-repeat').addEventListener('click',startSentence);
-  player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure){lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};needsReconnect=true;$('play-status').textContent='Audio output failed. Tap Play to reconnect and continue.';}});
+  player.addEventListener('error',()=>{const failure=playbackFailure(player);if(failure){lastMediaFailure={...failure,recording:audioLesson()?.number||api.getLibrary().find(x=>x.id===api.getActiveAudioId())?.name||'Unknown'};needsReconnect=true;reportPlaybackIssue('Audio output failed. Tap Play to reconnect and continue.');}});
   function refreshAudioMode(){
     if(!player.backend)return;
     $('audio-mode').value=player.mode;const compatibility=player.backend==='compatibility';

@@ -9,7 +9,9 @@ const options=async open=>{if(await page.locator('#shadow-options').evaluate(e=>
 const attach=()=>page.evaluate(async()=>{window.engine=(await import('./audio-engine.js')).getAudioEngine(document.getElementById('player'));window.starts=[];engine.addEventListener('playing',()=>starts.push({time:engine.currentTime,end:engine._playbackEnd,at:performance.now()}));});
 const state=()=>page.evaluate(()=>({time:engine.currentTime,paused:engine.paused,backend:engine.backend,end:engine._playbackEnd,starts}));
 const ready=()=>page.waitForFunction(()=>!document.getElementById('file-input').disabled);
-const stopped=()=>page.waitForFunction(()=>engine.paused&&document.getElementById('play-status').textContent==='Selection complete.');
+const layout=()=>page.evaluate(()=>{const list=document.getElementById('sentence-list').getBoundingClientRect(),next=document.getElementById('step-navigation').getBoundingClientRect();return {top:list.top+scrollY,height:list.height,next:next.top+scrollY};});
+const stableLayout=async before=>{const after=await layout();for(const key of Object.keys(before))assert(Math.abs(before[key]-after[key])<.5,`${key} shifted during playback`);assert(await page.locator('#play-status').isHidden());};
+const stopped=async()=>{await page.waitForFunction(()=>engine.paused&&document.getElementById('play-status').textContent==='Selection complete.');assert(await page.locator('#play-status').isHidden());};
 const checked=()=>page.locator('.sentence-check').evaluateAll(es=>es.flatMap((e,i)=>e.checked?[i]:[]));
 const spans=[{start:7,end:7.55},{start:9,end:9.55},{start:11,end:11.55}];
 try{
@@ -23,11 +25,11 @@ try{
  await page.locator('.sentence-check').nth(1).uncheck();await page.locator('.sentence-check').nth(2).check();assert.deepEqual(await checked(),[0,2]);
  for(const mode of ['compatibility','native']){
   await options(true);if(!await page.locator('#audio-options').evaluate(e=>e.open))await page.locator('#audio-options > summary').click();await page.locator('#audio-mode').selectOption(mode);await page.waitForFunction(mode=>engine.backend===mode&&!document.getElementById('audio-mode').disabled,mode);await options(false);
-  await page.evaluate(()=>starts=[]);await page.locator('#shadow-simple-play').click();await stopped();const played=await state();assert.deepEqual(played.starts.map(s=>s.end),[9,11.55]);assert(Math.abs(played.time-11.55)<.04);assert.deepEqual(await checked(),[0,2]);
+  const before=await layout();await page.evaluate(()=>starts=[]);await page.locator('#shadow-simple-play').click();await stopped();await stableLayout(before);const played=await state();assert.deepEqual(played.starts.map(s=>s.end),[9,11.55]);assert(Math.abs(played.time-11.55)<.04);assert.deepEqual(await checked(),[0,2]);
   // Repeat loops the entire selected set, with no unselected span or exercises.
   await page.locator('#shadow-loop').check();await page.evaluate(()=>starts=[]);await page.locator('#shadow-simple-play').click();await page.waitForFunction(()=>starts.length>=4);await page.locator('#shadow-loop').uncheck();await stopped();const looping=(await state()).starts.map(s=>s.end);assert.deepEqual(looping.slice(0,4),[9,11.55,9,11.55]);assert(looping.every(e=>[9,11.55].includes(e)));
   await page.locator('#shadow-loop').check();await page.locator('#shadow-repeat-delay').selectOption('2');await page.evaluate(()=>starts=[]);await page.locator('#shadow-simple-play').click();
-  await page.waitForFunction(()=>document.getElementById('play-status').textContent==='Next repeat in 2 seconds…');assert((await state()).paused);assert.equal(await page.locator('#shadow-simple-play').textContent(),'Pause');const waitingAt=await page.evaluate(()=>performance.now());assert.equal((await state()).starts.length,2);
+  await page.waitForFunction(()=>document.getElementById('play-status').textContent==='Next repeat in 2 seconds…');await stableLayout(before);assert((await state()).paused);assert.equal(await page.locator('#shadow-simple-play').textContent(),'Pause');const waitingAt=await page.evaluate(()=>performance.now());assert.equal((await state()).starts.length,2);
   await page.waitForFunction(()=>starts.length>=3);const resumedAt=(await state()).starts[2].at;assert(resumedAt-waitingAt>=1800);assert((await state()).starts[1].at-(await state()).starts[0].at<2700);
   await page.waitForFunction(()=>document.getElementById('play-status').textContent==='Next repeat in 2 seconds…');const beforeCancel=(await state()).starts.length;await page.locator('#shadow-loop').uncheck();await stopped();await page.waitForTimeout(2200);assert.equal((await state()).starts.length,beforeCancel);assert((await state()).paused);
   // Pause during the wait cancels the pending repeat.
